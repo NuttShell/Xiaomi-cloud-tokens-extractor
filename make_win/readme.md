@@ -1,7 +1,8 @@
 ## Файлы для самостоятельной сборки token_extractor.exe из token_extractor.py для Windows-платформ
 **В папке два исполняемых cmd файла.**
 
-`get_embedd_python.cmd` - позволяет скачать минимальную сборку Embedded Python с ftp python.org.
+`get_embedd_python.cmd` - позволяет скачать минимальную сборку Embedded Python с ftp python.org,
+версия и архитектура прописаны в файле `pyconfig.json`
 Если вам необходимо скачать определенную сборку, пропишите ее версию и архитектуру в файле `pyconfig.json`,
 скрипт прочитает и скачает именно ее.
 Если `pyconfig.json` отсутствует, или указанной в нем версии нет на python.org,
