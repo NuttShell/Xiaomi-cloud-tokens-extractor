@@ -1,3 +1,62 @@
+## Files for Building `token_extractor.exe` from `token_extractor.py` on Windows
+
+**The folder contains two executable CMD files.**
+
+`get_embedd_python.cmd` downloads a minimal **Embedded Python** distribution from the Python.org FTP server.
+
+The Python version and architecture are specified in the `pyconfig.json` file.
+
+If you need a specific Python build, simply specify the desired version and architecture in `pyconfig.json`.
+
+The script will read the configuration and download that exact build.
+
+If `pyconfig.json` is missing, or the specified Python version is not available on Python.org,
+
+the script will switch to interactive mode and prompt you to choose the Python version and architecture.
+
+Python will be downloaded and installed into the `\python` folder located next to the script.
+
+The installed Embedded Python distribution is **not** registered in the system and does **not** affect any existing Python installations or other Python versions.
+
+To install the required dependencies, edit the `requirements.txt` file. Its format is identical to the standard `requirements.txt` file,
+
+with one exception: the first line must specify **PyInstaller**, since it is used to build the executable.
+
+`make.cmd` builds an executable (`.exe`) from the Python source file.
+
+For the build to succeed, the following files must be located in the same folder:
+
+`icon.ico`
+
+`token_extractor.spec`
+
+**The compiled executable will be placed in the same folder as the script.**
+
+For the build process to work correctly, the following three names must match:
+
+In `make.cmd`:
+
+`set "progname=token_extractor"`
+
+and the following files:
+
+`token_extractor.py`
+
+`token_extractor.spec`
+
+You may rename them as needed. For example:
+
+In `make.cmd`:
+
+`set "progname=My_token_extractor"`
+
+and the corresponding files:
+
+`My_token_extractor.py`
+`My_token_extractor.spec`
+
+## Russian:
+
 ## Файлы для самостоятельной сборки token_extractor.exe из token_extractor.py для Windows-платформ
 **В папке два исполняемых cmd файла.**
 
