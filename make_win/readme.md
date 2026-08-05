@@ -1,4 +1,4 @@
-## Файлы для самостоятельной сборки token_extractor.exe из token_extractor.py
+## Файлы для самостоятельной сборки token_extractor.exe из token_extractor.py для Windows-платформ
 **В папке два исполняемых cmd файла.**
 
 `get_embedd_python.cmd` - позволяет скачать минимальную сборку Embedded Python с ftp python.org.
