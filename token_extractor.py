@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import argparse
+import atexit
 import base64
 import hashlib
 import hmac
@@ -8,13 +9,13 @@ import logging
 import os
 import random
 import re
-import socket
 import sys
 import tempfile
 import threading
 import time
+from datetime import datetime
 from getpass import getpass
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 import requests
@@ -30,7 +31,34 @@ from PIL import Image
 if sys.platform != "win32":
     import readline
 
+
+def set_console_title(title: str) -> None:
+    """On Windows, python.exe's console window has no title of its own, so
+    the OS shows a generic default (e.g. "Python") -- set something
+    meaningful instead. No-op on other platforms."""
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            ctypes.windll.kernel32.SetConsoleTitleW(title)
+        except Exception:
+            pass
+
+
+set_console_title("Xiaomi Cloud Tokens Extractor")
+
 SERVERS = ["cn", "de", "us", "ru", "tw", "sg", "in", "i2"]
+
+# Folder the report file gets written to: next to the script, or next to the
+# .exe if this is running as a PyInstaller-built executable (sys.executable
+# would otherwise point into a temporary extraction folder for onefile
+# builds -- sys.frozen tells us to use the exe's own location instead).
+if getattr(sys, "frozen", False):
+    SCRIPT_DIR = os.path.dirname(os.path.abspath(sys.executable))
+else:
+    SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+SESSION_CACHE_FILE = ".xiaomi-cloud-session.json"
+
 NAME_TO_LEVEL = {
     "CRITICAL": logging.CRITICAL,
     "FATAL": logging.FATAL,
@@ -49,7 +77,13 @@ parser.add_argument("-p", "--password", required=False, help="Password")
 parser.add_argument("-s", "--server", required=False, help="Server", choices=[*SERVERS, ""])
 parser.add_argument("-l", "--log_level", required=False, help="Log level", default="CRITICAL", choices=list(NAME_TO_LEVEL.keys()))
 parser.add_argument("-o", "--output", required=False, help="Output file")
-parser.add_argument("--host", required=False, help="Host")
+parser.add_argument("--serve-image", dest="serve_image", required=False, action="store_true",
+                     help="Serve the captcha/QR image over local HTTP instead of opening it "
+                          "with a local viewer -- for headless machines with no GUI/image "
+                          "viewer. Open the printed URL in a browser on any device.")
+parser.add_argument("--host", required=False,
+                     help="Host/IP to show in the --serve-image URL (e.g. the machine's LAN "
+                          "IP, so you can open it from another device). Defaults to 127.0.0.1.")
 args = parser.parse_args()
 if args.non_interactive and (not args.username or not args.password):
     parser.error("You need to specify username and password or run as interactive.")
@@ -94,10 +128,90 @@ class XiaomiCloudConnector(ABC):
         self._ssecurity = None
         self.userId = None
         self._serviceToken = None
+        self._session_cache_path = os.path.join(SCRIPT_DIR, SESSION_CACHE_FILE)
 
     @abstractmethod
     def login(self) -> bool:
         pass
+
+    def load_cached_login(self) -> bool:
+        """Load a previously cached login (userId/ssecurity/serviceToken +
+        cookies) from disk, if present. Does NOT verify it's still valid --
+        call validate_cached_login() for that."""
+        if not os.path.exists(self._session_cache_path):
+            return False
+        try:
+            with open(self._session_cache_path, encoding="utf-8") as cache_file:
+                cache = json.load(cache_file)
+
+            self.userId = cache["userId"]
+            self._ssecurity = cache["ssecurity"]
+            self._serviceToken = cache["serviceToken"]
+            self._session.cookies.clear()
+            for cookie_data in cache.get("cookies", []):
+                self._session.cookies.set(
+                    cookie_data["name"],
+                    cookie_data["value"],
+                    domain=cookie_data.get("domain", ""),
+                    path=cookie_data.get("path", "/"),
+                )
+            return bool(self.userId and self._ssecurity and self._serviceToken)
+        except (OSError, json.JSONDecodeError, KeyError, TypeError) as e:
+            _LOGGER.debug("Unable to load cached login: %s", e)
+            return False
+
+    def save_cached_login(self) -> None:
+        """Save the current login (userId/ssecurity/serviceToken + cookies)
+        to disk so a future run can skip the interactive login."""
+        if not (self.userId and self._ssecurity and self._serviceToken):
+            return
+
+        cache = {
+            "userId": self.userId,
+            "ssecurity": self._ssecurity,
+            "serviceToken": self._serviceToken,
+            "savedAt": int(time.time()),
+            "cookies": [
+                {
+                    "name": cookie.name,
+                    "value": cookie.value,
+                    "domain": cookie.domain,
+                    "path": cookie.path,
+                }
+                for cookie in self._session.cookies
+            ],
+        }
+        try:
+            with open(self._session_cache_path, "w", encoding="utf-8") as cache_file:
+                json.dump(cache, cache_file, indent=2)
+            try:
+                os.chmod(self._session_cache_path, 0o600)
+            except OSError as e:
+                _LOGGER.debug("Unable to restrict session cache permissions: %s", e)
+        except OSError as e:
+            _LOGGER.debug("Unable to save cached login: %s", e)
+
+    def clear_cached_login(self) -> None:
+        try:
+            os.remove(self._session_cache_path)
+        except FileNotFoundError:
+            pass
+        except OSError as e:
+            _LOGGER.debug("Unable to remove cached login: %s", e)
+
+    def validate_cached_login(self) -> bool:
+        """Actually exercise the cached session against the API -- a cache
+        file can exist and be well-formed while the tokens inside it are
+        expired or revoked, so this makes one real request per candidate
+        server (or just args.server, if given) and only trusts the cache if
+        one of them succeeds."""
+        if not (self.userId and self._ssecurity and self._serviceToken):
+            return False
+        servers_to_validate = [args.server] if args.server else SERVERS
+        for server in servers_to_validate:
+            if self.get_homes(server) is not None:
+                return True
+        return False
 
     def get_homes(self, country):
         url = self.get_api_url(country) + "/v2/homeroom/gethome"
@@ -336,23 +450,43 @@ class PasswordXiaomiCloudConnector(XiaomiCloudConnector):
             if "captchaUrl" in json_resp and json_resp["captchaUrl"] is not None:
                 if args.non_interactive:
                     parser.error("Captcha solution required, rerun in interactive mode")
-                captcha_code: str = self.handle_captcha(json_resp["captchaUrl"])
-                if not captcha_code:
-                    _LOGGER.debug("Could not solve captcha.")
-                    return False
-                # Add captcha code to the fields and retry
-                fields["captCode"] = captcha_code
-                _LOGGER.debug("Retrying login with captcha.")
-                response = self._session.post(url, headers=headers, params=fields, allow_redirects=False)
-                _LOGGER.debug("login_step_2: Retry Response text: %s", response.text[:1000])
-                if response is not None and response.status_code == 200:
-                    json_resp = self.to_json(response.text)
-                else:
-                    _LOGGER.error("Login failed even after captcha.")
-                    return False
-                if "code" in json_resp and json_resp["code"] == 87001:
-                    print_if_interactive("Invalid captcha.")
-                    return False
+
+                max_captcha_attempts = 3
+                captcha_url = json_resp["captchaUrl"]
+                for captcha_attempt in range(1, max_captcha_attempts + 1):
+                    captcha_code: str = self.handle_captcha(captcha_url)
+                    if not captcha_code:
+                        _LOGGER.debug("Could not solve captcha.")
+                        return False
+                    # Add captcha code to the fields and retry
+                    fields["captCode"] = captcha_code
+                    _LOGGER.debug("Retrying login with captcha.")
+                    response = self._session.post(url, headers=headers, params=fields, allow_redirects=False)
+                    _LOGGER.debug("login_step_2: Retry Response text: %s", response.text[:1000])
+                    if response is not None and response.status_code == 200:
+                        json_resp = self.to_json(response.text)
+                    else:
+                        _LOGGER.error("Login failed even after captcha.")
+                        return False
+
+                    if "code" in json_resp and json_resp["code"] == 87001:
+                        remaining = max_captcha_attempts - captcha_attempt
+                        if remaining <= 0:
+                            print_if_interactive(f"{Fore.RED}Invalid captcha.")
+                            return False
+                        print_if_interactive(
+                            f"{Fore.YELLOW}Invalid captcha, let's try again "
+                            f"({remaining} more {'attempt' if remaining == 1 else 'attempts'}).")
+                        # The server may hand back a fresh captchaUrl along
+                        # with the failure -- use it if so, otherwise just
+                        # re-request the same one (it renders a new image
+                        # on every fetch regardless).
+                        captcha_url = json_resp.get("captchaUrl") or captcha_url
+                        continue
+
+                    # Not a wrong-captcha response -- move on with whatever
+                    # json_resp says (success, 2FA required, other error...)
+                    break
 
             valid = "ssecurity" in json_resp and len(str(json_resp["ssecurity"])) > 4
             if valid:
@@ -391,25 +525,39 @@ class PasswordXiaomiCloudConnector(XiaomiCloudConnector):
         if captcha_url.startswith("/"):
             captcha_url = "https://account.xiaomi.com" + captcha_url
 
-        _LOGGER.debug("Downloading captcha image from: %s", captcha_url)
-        response = self._session.get(captcha_url, stream=False)
-        if response.status_code != 200:
-            _LOGGER.error("Unable to fetch captcha image.")
-            return ""
+        max_attempts = 3
+        for attempt in range(1, max_attempts + 1):
+            _LOGGER.debug("Downloading captcha image from: %s", captcha_url)
+            response = self._session.get(captcha_url, stream=False)
+            if response.status_code != 200:
+                _LOGGER.error("Unable to fetch captcha image.")
+                return ""
 
-        print_if_interactive(f"{Fore.YELLOW}Captcha verification required.")
-        present_image_image(
-            response.content,
-            message_url = f"Image URL: {Fore.BLUE}http://{args.host or '127.0.0.1'}:31415",
-            message_file_saved = "Captcha image saved at: {}",
-            message_manually_open_file = "Please open {} and solve the captcha."
-        )
+            print_if_interactive(f"{Fore.YELLOW}Captcha verification required.")
+            present_image_image(
+                response.content,
+                message_url = f"Image URL: {Fore.BLUE}http://{args.host or '127.0.0.1'}:31415{Style.RESET_ALL}",
+                message_file_saved = "Captcha image saved at: {}",
+                message_manually_open_file = "Please open {} and solve the captcha."
+            )
 
-        # Ask user for a captcha solution
-        print_if_interactive(f"Enter captcha as shown in the image {Fore.BLUE}(case-sensitive){Style.RESET_ALL}:")
-        captcha_solution: str = input().strip()
-        print_if_interactive()
-        return captcha_solution
+            remaining = max_attempts - attempt
+            prompt = f"Enter captcha as shown in the image {Fore.BLUE}(case-sensitive){Style.RESET_ALL}"
+            if remaining > 0:
+                prompt += f", or just press Enter for a new image if it's unreadable ({remaining} more {'try' if remaining == 1 else 'tries'}):"
+            else:
+                prompt += ":"
+            print_if_interactive(prompt)
+
+            captcha_solution: str = input().strip()
+            print_if_interactive()
+
+            if captcha_solution or remaining == 0:
+                return captcha_solution
+
+            print_if_interactive(f"{Fore.YELLOW}Requesting a new captcha image...")
+
+        return ""
 
 
     def do_2fa_email_flow(self, notification_url: str) -> bool:
@@ -674,7 +822,7 @@ class QrCodeXiaomiCloudConnector(XiaomiCloudConnector):
 
             present_image_image(
                 response.content,
-                message_url = f"QR code URL: {Fore.BLUE}http://{args.host or '127.0.0.1'}:31415",
+                message_url = f"QR code URL: {Fore.BLUE}http://{args.host or '127.0.0.1'}:31415{Style.RESET_ALL}",
                 message_file_saved = "QR code image saved at: {}",
                 message_manually_open_file = "Please open {} and scan the QR code."
             )
@@ -767,6 +915,71 @@ def print_entry(key: str, value: str, tab: int) -> None:
         print_tabbed(f'{Fore.YELLOW}{key + ":": <10}{Style.RESET_ALL}{value}', tab)
 
 
+def format_devices_report(output: list, generated_at: str, username: str | None = None) -> str:
+    """Plain-text (no ANSI colors) version of what gets printed to the
+    console, built from the same structured `output` list that --output
+    dumps as JSON."""
+    lines = [
+        "Xiaomi Cloud Tokens Extractor - Report",
+        f"Generated: {generated_at}",
+    ]
+    if username:
+        lines.append(f"Login: {username}")
+    lines.append("")
+    for server_entry in output:
+        lines.append(f'Server: {server_entry["server"]}')
+        homes = server_entry.get("homes") or []
+        if not homes:
+            lines.append("  No homes found.")
+            lines.append("")
+            continue
+        for home in homes:
+            lines.append(f'  Home ID: {home["home_id"]} (owner: {home["home_owner"]})')
+            devices = home.get("devices") or []
+            if not devices:
+                lines.append("    No devices found.")
+                lines.append("")
+                continue
+            for device in devices:
+                lines.append("    ---------")
+                if device.get("name"):
+                    lines.append(f'    NAME:    {device["name"]}')
+                if device.get("did"):
+                    lines.append(f'    ID:      {device["did"]}')
+                ble = device.get("BLE_DATA") or {}
+                if ble.get("beaconkey"):
+                    lines.append(f'    BLE KEY: {ble["beaconkey"]}')
+                if device.get("mac"):
+                    lines.append(f'    MAC:     {device["mac"]}')
+                if device.get("localip"):
+                    lines.append(f'    IP:      {device["localip"]}')
+                if device.get("token"):
+                    lines.append(f'    TOKEN:   {device["token"]}')
+                if device.get("model"):
+                    lines.append(f'    MODEL:   {device["model"]}')
+            lines.append("    ---------")
+            lines.append("")
+    return "\n".join(lines)
+
+
+def write_devices_report(output: list, username: str | None = None) -> None:
+    """Save the same information shown on screen to a text file next to the
+    script/exe, so it isn't only sitting in the console window."""
+    if not output:
+        return
+    report_path = os.path.join(SCRIPT_DIR, f"xiaomi_tokens_{datetime.now():%Y%m%d_%H%M%S}.txt")
+    try:
+        report_text = format_devices_report(
+            output, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), username=username
+        )
+        with open(report_path, "w", encoding="utf-8") as f:
+            f.write(report_text)
+        print_if_interactive(f"{Fore.GREEN}Full report saved to: {report_path}")
+    except OSError as e:
+        _LOGGER.error("Could not write report file %s: %s", report_path, e)
+        print_if_interactive(f"{Fore.RED}Could not save report file: {e}")
+
+
 def print_banner() -> None:
     print_if_interactive(Fore.YELLOW + Style.BRIGHT + r"""
                                Xiaomi Cloud
@@ -779,23 +992,87 @@ ___ ____ _  _ ____ _  _ ____    ____ _  _ ___ ____ ____ ____ ___ ____ ____
     """)
 
 
+_temp_image_files: list[str] = []
+
+
+def _cleanup_temp_image_files() -> None:
+    for path in _temp_image_files:
+        try:
+            os.remove(path)
+        except OSError as e:
+            # File already gone, or still held open by the viewer (e.g. the
+            # Photos app on Windows can keep a handle for a bit) -- nothing
+            # to do about it at this point, so just note it and move on.
+            _LOGGER.debug("Could not remove temp image %s: %s", path, e)
+
+
+atexit.register(_cleanup_temp_image_files)
+
+
+_IMAGE_SERVER_PORT = 31415
+_image_httpd = None  # keeps a reference so a previous server can always be stopped
+
+
+def stop_image_server() -> None:
+    """Stop and release a previously started captcha/QR image server, if any."""
+    global _image_httpd
+    if _image_httpd is not None:
+        try:
+            _image_httpd.shutdown()
+            _image_httpd.server_close()
+        except Exception as e:
+            _LOGGER.debug("Error while stopping previous image server: %s", e)
+        _image_httpd = None
+
+
+atexit.register(stop_image_server)
+
+
+class _ImgHTTPServer(ThreadingHTTPServer):
+    # On Windows, SO_REUSEADDR (http.server's default) lets a *second*
+    # process silently bind the same port while an earlier, still-running
+    # instance is still listening, and the OS then routes incoming requests
+    # to either socket essentially at random -- so we disable it there and
+    # fail fast on a conflict instead (the caller falls back to the local-
+    # viewer path). On Linux/macOS, SO_REUSEADDR only allows rebinding a
+    # socket that's in TIME_WAIT after a clean shutdown -- the normal, safe
+    # case -- so we keep the default there to avoid spurious "Address
+    # already in use" errors on a quick restart.
+    allow_reuse_address = sys.platform != "win32"
+    daemon_threads = True
+
+
 def start_image_server(image: bytes) -> None:
+    """Serve `image` once over local HTTP on _IMAGE_SERVER_PORT. Raises if
+    the port is already in use (e.g. a leftover instance from an earlier
+    run) instead of silently sharing it."""
+    global _image_httpd
+
+    stop_image_server()
+
     class ImgHttpHandler(BaseHTTPRequestHandler):
 
         def do_GET(self) -> None:
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(image)
+            try:
+                self.send_response(200)
+                self.send_header("Content-Type", "image/jpeg")
+                self.send_header("Content-Length", str(len(image)))
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(image)
+            except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError) as e:
+                # Browser tab was closed/refreshed/cancelled mid-transfer --
+                # harmless, no need to surface a traceback for it.
+                _LOGGER.debug("Client disconnected before image was fully sent: %s", e)
 
         def log_message(self, msg, *args) -> None:
             _LOGGER.debug(msg, *args)
 
-    httpd = HTTPServer(("", 31415), ImgHttpHandler)
+    httpd = _ImgHTTPServer(("", _IMAGE_SERVER_PORT), ImgHttpHandler)
+    _image_httpd = httpd
     _LOGGER.info("server address: %s", httpd.server_address)
-    _LOGGER.info("hostname: %s", socket.gethostname())
 
-    thread = threading.Thread(target = httpd.serve_forever)
-    thread.daemon = True
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
 
 
@@ -805,43 +1082,77 @@ def present_image_image(
         message_file_saved: str,
         message_manually_open_file: str,
 ) -> None:
-    try:
-        # Try to serve an image file
-        start_image_server(image_content)
-        print_if_interactive(message_url)
-    except Exception as e1:
-        _LOGGER.debug(e1)
-        # Save image to a temporary file
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
-            tmp.write(image_content)
-            tmp_path: str = tmp.name
-        print_if_interactive(message_file_saved.format(tmp_path))
+    if args.serve_image:
         try:
+            start_image_server(image_content)
+            print_if_interactive(message_url)
+            return
+        except Exception as e:
+            _LOGGER.debug("Could not start image server, falling back to local viewer: %s", e)
+
+    # Save the image to a temporary file and open it with the OS default
+    # viewer. The file is deleted automatically when the script exits (see
+    # _cleanup_temp_image_files above).
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+        tmp.write(image_content)
+        tmp_path: str = tmp.name
+    _temp_image_files.append(tmp_path)
+    print_if_interactive(message_file_saved.format(tmp_path))
+    try:
+        if sys.platform == "win32":
+            # A single, direct ShellExecute call. Pillow's Image.show() on
+            # Windows instead shells out via cmd.exe to run
+            # `start "Pillow" /WAIT "<file>" && ping -n 4 127.0.0.1 >NUL &&
+            # del /f "<file>"` -- that extra shell/start/ping/del chain is
+            # what was producing the stray "Python was not found..." App
+            # Execution Alias message right at the captcha/2FA prompt.
+            # os.startfile() skips all of that.
+            os.startfile(tmp_path)
+        else:
             img = Image.open(tmp_path)
             img.show()
-        except Exception as e2:
-            _LOGGER.debug(e2)
-            print_if_interactive(message_manually_open_file.format(tmp_path))
+    except Exception as e2:
+        _LOGGER.debug(e2)
+        print_if_interactive(message_manually_open_file.format(tmp_path))
 
 
 def main() -> None:
     print_banner()
-    if args.non_interactive:
-        connector = PasswordXiaomiCloudConnector()
-    else:
-        print_if_interactive("Please select a way to log in:")
-        print_if_interactive(f" p{Fore.BLUE} - using password")
-        print_if_interactive(f" q{Fore.BLUE} - using QR code")
-        log_in_method = ""
-        while not log_in_method in ["P", "Q"]:
-            log_in_method = input("p/q: ").upper()
-        if log_in_method == "P":
+
+    # Try a cached login from a previous run first -- if it's still valid,
+    # this skips the interactive password/QR flow (and the captcha/2FA that
+    # can come with it) entirely.
+    connector = PasswordXiaomiCloudConnector()
+    logged = False
+
+    if connector.load_cached_login():
+        print_if_interactive(f"{Fore.BLUE}Using cached login...")
+        if connector.validate_cached_login():
+            logged = True
+        else:
+            print_if_interactive(f"{Fore.YELLOW}Cached login is expired or invalid.")
+            connector.clear_cached_login()
+
+    if not logged:
+        if args.non_interactive:
             connector = PasswordXiaomiCloudConnector()
         else:
-            connector = QrCodeXiaomiCloudConnector()
-        print_if_interactive()
+            print_if_interactive("Please select a way to log in:")
+            print_if_interactive(f" p{Fore.BLUE} - using password")
+            print_if_interactive(f" q{Fore.BLUE} - using QR code")
+            log_in_method = ""
+            while not log_in_method in ["P", "Q"]:
+                log_in_method = input("p/q: ").upper()
+            if log_in_method == "P":
+                connector = PasswordXiaomiCloudConnector()
+            else:
+                connector = QrCodeXiaomiCloudConnector()
+            print_if_interactive()
 
-    logged = connector.login()
+        logged = connector.login()
+        if logged:
+            connector.save_cached_login()
+
     if logged:
         print_if_interactive(f"{Fore.GREEN}Logged in.")
         print_if_interactive()
@@ -896,6 +1207,7 @@ def main() -> None:
                 else:
                     print_if_interactive(f"{Fore.RED}Unable to get devices from server {current_server}.")
             output.append({"server": current_server, "homes": all_homes})
+        write_devices_report(output, username=getattr(connector, "_username", None))
         if args.output:
             with open(args.output, "w") as f:
                 f.write(json.dumps(output, indent=4))
