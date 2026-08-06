@@ -1,56 +1,60 @@
-## Files for Building `token_extractor.exe` from `token_extractor.py` on Windows
+## Files for building token_extractor.exe from token_extractor.py yourself, for Windows
 
-**The folder contains two executable CMD files.**
+**The folder contains two executable cmd files.**
 
-`get_embedd_python.cmd` downloads a minimal **Embedded Python** distribution from the Python.org FTP server.
+`get_embedd_python.cmd` — lets you download a minimal Embedded Python build from the python.org ftp server;
 
-The Python version and architecture are specified in the `pyconfig.json` file.
+the version and architecture are set in the `pyconfig.json` file.
 
-If you need a specific Python build, simply specify the desired version and architecture in `pyconfig.json`.
+If you need a specific build, specify its version and architecture in `pyconfig.json`,
 
-The script will read the configuration and download that exact build.
+and the script will read it and download exactly that build.
 
-If `pyconfig.json` is missing, or the specified Python version is not available on Python.org,
+If `pyconfig.json` is missing, or the version it specifies isn't available on python.org,
 
-the script will switch to interactive mode and prompt you to choose the Python version and architecture.
+the script will offer an interactive choice of Python version and architecture.
 
-Python will be downloaded and installed into the `\python` folder located next to the script.
+Python will be downloaded and installed into a `\python` folder next to the script.
 
-The installed Embedded Python distribution is **not** registered in the system and does **not** affect any existing Python installations or other Python versions.
+The installed Python is not registered anywhere in the system and does not
 
-To install the required dependencies, edit the `requirements.txt` file. Its format is identical to the standard `requirements.txt` file,
+affect any other Python versions already installed on the machine.
 
-with one exception: the first line must specify **PyInstaller**, since it is used to build the executable.
+To install the required dependencies, edit the `requirements.txt` file; its structure and format are the same as a standard
 
-`make.cmd` builds an executable (`.exe`) from the Python source file.
+`requirements.txt`, except that the first line must be PyInstaller, since the whole point is to build an exe file
 
-For the build to succeed, the following files must be located in the same folder:
+with it.
+
+`make.cmd` — lets you build an exe file from the .py source.
+
+For the build to work correctly, the following files must be present alongside it:
 
 `icon.ico`
 
 `token_extractor.spec`
 
-**The compiled executable will be placed in the same folder as the script.**
+**The compiled exe will be placed in the folder next to the script.**
 
-For the build process to work correctly, the following three names must match:
+For the build to work correctly, three names must match:
 
-In `make.cmd`:
+the line in `make.cmd`:
 
-`set "progname=token_extractor"`
+`set "progname=token_extractor"`,
 
-and the following files:
+and the file names in the folder:
 
 `token_extractor.py`
 
 `token_extractor.spec`
 
-You may rename them as needed. For example:
+You can rename all of these to whatever you like, for example:
 
-In `make.cmd`:
+the line in `make.cmd`:
 
 `set "progname=My_token_extractor"`
 
-and the corresponding files:
+and the file names in the folder:
 
 `My_token_extractor.py`
 `My_token_extractor.spec`
