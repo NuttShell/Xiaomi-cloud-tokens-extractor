@@ -54,6 +54,7 @@ jobs:
           name: token_extractor_docker.zip
           path: token_extractor_docker.zip
       - name: Upload token_extractor.zip to release
+        if: github.event_name == 'release'
         uses: svenstaro/upload-release-action@v1-release
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
@@ -83,6 +84,7 @@ jobs:
           name: token_extractor.exe
           path: dist/token_extractor.exe
       - name: Upload token_extractor.exe to release
+        if: github.event_name == 'release'
         uses: svenstaro/upload-release-action@v1-release
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
