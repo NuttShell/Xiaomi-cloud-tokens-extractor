@@ -1,23 +1,18 @@
 name: 'Build'
-
 on:
   push:
     branches:
       - master
-      - dev
   pull_request:
     branches:
       - master
-      - dev
-
 jobs:
   build_zip:
     name: Build zip
     runs-on: ubuntu-latest
     steps:
       - name: Download repo
-        uses: actions/checkout@v1
-
+        uses: actions/checkout@v4
       - name: Create token_extractor.zip
         run: |
           mkdir -p token_extractor
@@ -25,20 +20,17 @@ jobs:
           cp requirements.txt token_extractor/
           zip token_extractor.zip -r token_extractor
           rm -rf token_extractor
-
       - name: Archive built file
         uses: actions/upload-artifact@v4
         with:
           name: token_extractor.zip
           path: token_extractor.zip
-
   build_docker_zip:
     name: Build Docker zip
     runs-on: ubuntu-latest
     steps:
       - name: Download repo
-        uses: actions/checkout@v1
-
+        uses: actions/checkout@v4
       - name: Create token_extractor.zip
         run: |
           mkdir -p token_extractor_docker
@@ -48,34 +40,27 @@ jobs:
           cp Dockerfile token_extractor_docker/
           zip token_extractor_docker.zip -r token_extractor_docker
           rm -rf token_extractor_docker
-
       - name: Archive built file
         uses: actions/upload-artifact@v4
         with:
           name: token_extractor_docker.zip
           path: token_extractor_docker.zip
-
   build_exe:
     name: Build exe
     runs-on: windows-latest
     steps:
       - name: Download repo
         uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         name: Setup Python
         with:
-          python-version: '3.13.x'
-
+          python-version: '3.14.x'
       - name: Install pyinstaller
         run: pip3 install -U pyinstaller
-
       - name: Install dependencies
         run: pip3 install -r requirements.txt
-
       - name: Run pyinstaller
         run: pyinstaller token_extractor.spec
-
       - name: Archive built file
         uses: actions/upload-artifact@v4
         with:
