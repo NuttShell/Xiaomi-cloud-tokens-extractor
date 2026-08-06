@@ -70,7 +70,7 @@ jobs:
       - uses: actions/setup-python@v5
         name: Setup Python
         with:
-          python-version: '3.14.x'
+          python-version: '3.13.x'
       - name: Install pyinstaller
         run: pip3 install -U pyinstaller
       - name: Install dependencies
