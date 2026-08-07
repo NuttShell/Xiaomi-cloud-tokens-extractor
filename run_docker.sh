@@ -3,16 +3,14 @@ ha_host=$(ha network info --raw-json 2>/dev/null | jq -r '[.data.interfaces[] | 
 if [ -z "${ha_host}" ]; then
   ha_host="127.0.0.1"
 fi
-host_to_pass=$ha_host || "127.0.0.1"
+host_to_pass="$ha_host"
 set -o errexit  # fail on first error
 set -o nounset  # fail on undef var
 set -o pipefail # fail on first error in pipe
-
 if [ -f "token_extractor_docker.zip" ]; then
     echo "token_extractor_docker.zip file already exists, please remove it and try again..."
     exit 1
 fi
-
 curl --silent --fail --show-error --location --remote-name --remote-header-name\
   https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor/releases/latest/download/token_extractor_docker.zip
 unzip token_extractor_docker.zip
