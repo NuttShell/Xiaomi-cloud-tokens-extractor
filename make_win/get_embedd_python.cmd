@@ -3,7 +3,7 @@ setlocal EnableDelayedExpansion
 set "SCRIPTDIR=%~dp0"
 set "SCRIPTDIR=%SCRIPTDIR:~0,-1%"
 set "PS1FILE=%TEMP%\pspython_%RANDOM%.ps1"
-set "version=26.0731"
+set "version=26.0807"
 
 powershell -NoProfile -Command "$c = Get-Content -LiteralPath '%~f0' -Raw -Encoding UTF8; $idx = $c.LastIndexOf('REM_PS1_CODE_START'); $code = $c.Substring($idx + 18).TrimStart([char]13,[char]10); Set-Content -LiteralPath '%PS1FILE%' -Value $code -Encoding UTF8 -NoNewline"
 
@@ -25,8 +25,7 @@ param(
 )
 
 $DEFAULT_PACKAGES = @(
-    "pyinstaller",
-    "fonttools"
+    "pyinstaller"
 )
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
