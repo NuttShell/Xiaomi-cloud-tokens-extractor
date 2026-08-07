@@ -1,5 +1,7 @@
 ## Files for building token_extractor.exe from token_extractor.py yourself, for Windows
 
+Copy token_extractor.py to folder with this script
+
 **The folder contains two executable cmd files.**
 
 `get_embedd_python.cmd` — lets you download a minimal Embedded Python build from the python.org ftp server;
@@ -62,6 +64,9 @@ and the file names in the folder:
 ## Russian:
 
 ## Файлы для самостоятельной сборки token_extractor.exe из token_extractor.py для Windows-платформ
+
+Скопируйте token_extractor.py в папку с скриптами
+
 **В папке два исполняемых cmd файла.**
 
 `get_embedd_python.cmd` - позволяет скачать минимальную сборку Embedded Python с ftp python.org,
