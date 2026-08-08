@@ -62,6 +62,33 @@ jobs:
           asset_name: token_extractor_docker.zip
           tag: ${{ github.ref }}
           overwrite: true
+  release_win_zip:
+    name: Release Windows build tools zip
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download repo
+        uses: actions/checkout@v4
+      - name: Create win_build.zip
+        run: |
+          mkdir -p win_build
+          cp -r make_win/. win_build/
+          cp token_extractor.py win_build/
+          zip win_build.zip -r win_build
+          rm -rf win_build
+      - name: Archive built file
+        uses: actions/upload-artifact@v4
+        with:
+          name: win_build.zip
+          path: win_build.zip
+      - name: Upload win_build.zip to release
+        if: github.event_name == 'release'
+        uses: svenstaro/upload-release-action@v1-release
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: win_build.zip
+          asset_name: win_build.zip
+          tag: ${{ github.ref }}
+          overwrite: true
   release_exe:
     name: Release exe
     runs-on: windows-latest
