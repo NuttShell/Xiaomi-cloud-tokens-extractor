@@ -1,6 +1,7 @@
 ## Files for building token_extractor.exe from token_extractor.py yourself, for Windows
 
-Copy token_extractor.py to folder with this script
+Download and unpack archive:
+[win_build.zip](https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor/releases/latest/download/win_build.zip)
 
 **The folder contains two executable cmd files.**
 
@@ -8,25 +9,23 @@ Copy token_extractor.py to folder with this script
 
 the version and architecture are set in the `pyconfig.json` file.
 
-If you need a specific build, specify its version and architecture in `pyconfig.json`,
+If you need a specific build, specify its version and architecture in `pyconfig.json`, and the script will read it
 
-and the script will read it and download exactly that build.
+and download exactly that build.
 
-If `pyconfig.json` is missing, or the version it specifies isn't available on python.org,
+If `pyconfig.json` is missing, or the version it specifies isn't available on python.org, the script will offer an
 
-the script will offer an interactive choice of Python version and architecture.
+interactive choice of Python version and architecture.
 
 Python will be downloaded and installed into a `\python` folder next to the script.
 
-The installed Python is not registered anywhere in the system and does not
+The installed Python is not registered anywhere in the system and does not affect any other Python versions already
 
-affect any other Python versions already installed on the machine.
+installed on the machine.
 
 To install the required dependencies, edit the `requirements.txt` file; its structure and format are the same as a standard
 
-`requirements.txt`, except that the first line must be PyInstaller, since the whole point is to build an exe file
-
-with it.
+`requirements.txt`, except that the first line must be PyInstaller, since the whole point is to build an exe file with it.
 
 `make.cmd` — lets you build an exe file from the .py source.
 
