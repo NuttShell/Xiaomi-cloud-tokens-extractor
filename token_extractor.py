@@ -48,6 +48,13 @@ set_console_title("Xiaomi Cloud Tokens Extractor")
 
 SERVERS = ["cn", "de", "us", "ru", "tw", "sg", "in", "i2"]
 
+# Some regional API endpoints can be unreachable from a given network
+# (blocked, geo-restricted, no route, etc.) rather than just slow. Without an
+# explicit timeout, requests/urllib3 will wait on the OS's own TCP-level
+# timeout, which can take a long time and varies by platform. This bounds it
+# to something predictable.
+API_REQUEST_TIMEOUT = 15  # seconds
+
 # Folder the report file gets written to: next to the script, or next to the
 # .exe if this is running as a PyInstaller-built executable (sys.executable
 # would otherwise point into a temporary extraction folder for onefile
@@ -209,8 +216,12 @@ class XiaomiCloudConnector(ABC):
             return False
         servers_to_validate = [args.server] if args.server else SERVERS
         for server in servers_to_validate:
-            if self.get_homes(server) is not None:
-                return True
+            try:
+                if self.get_homes(server) is not None:
+                    return True
+            except requests.exceptions.RequestException as e:
+                _LOGGER.debug("Server %s unreachable while validating cached login: %s", server, e)
+                continue
         return False
 
     def get_homes(self, country):
@@ -264,7 +275,7 @@ class XiaomiCloudConnector(ABC):
         nonce = self.generate_nonce(millis)
         signed_nonce = self.signed_nonce(nonce)
         fields = self.generate_enc_params(url, "POST", signed_nonce, nonce, params, self._ssecurity)
-        response = self._session.post(url, headers=headers, cookies=cookies, params=fields)
+        response = self._session.post(url, headers=headers, cookies=cookies, params=fields, timeout=API_REQUEST_TIMEOUT)
         if response.status_code == 200:
             decoded = self.decrypt_rc4(self.signed_nonce(fields["_nonce"]), response.text)
             return json.loads(decoded)
@@ -1160,53 +1171,58 @@ def main() -> None:
         print_if_interactive()
         output = []
         for current_server in servers_to_check:
-            all_homes = []
-            homes = connector.get_homes(current_server)
-            if homes is not None:
-                for h in homes["result"]["homelist"]:
-                    all_homes.append({"home_id": h["id"], "home_owner": connector.userId})
-            dev_cnt = connector.get_dev_cnt(current_server)
-            if dev_cnt is not None:
-                for h in dev_cnt["result"]["share"]["share_family"]:
-                    all_homes.append({"home_id": h["home_id"], "home_owner": h["home_owner"]})
+            try:
+                all_homes = []
+                homes = connector.get_homes(current_server)
+                if homes is not None:
+                    for h in homes["result"]["homelist"]:
+                        all_homes.append({"home_id": h["id"], "home_owner": connector.userId})
+                dev_cnt = connector.get_dev_cnt(current_server)
+                if dev_cnt is not None:
+                    for h in dev_cnt["result"]["share"]["share_family"]:
+                        all_homes.append({"home_id": h["home_id"], "home_owner": h["home_owner"]})
 
-            if len(all_homes) == 0:
-                print_if_interactive(f'{Fore.RED}No homes found for server "{current_server}".')
+                if len(all_homes) == 0:
+                    print_if_interactive(f'{Fore.RED}No homes found for server "{current_server}".')
 
-            for home in all_homes:
-                devices = connector.get_devices(current_server, home["home_id"], home["home_owner"])
-                home["devices"] = []
-                if devices is not None:
-                    if devices["result"]["device_info"] is None or len(devices["result"]["device_info"]) == 0:
-                        print_if_interactive(f'{Fore.RED}No devices found for server "{current_server}" @ home "{home["home_id"]}".')
-                        continue
-                    print_if_interactive(f'Devices found for server "{current_server}" @ home "{home["home_id"]}":')
-                    for device in devices["result"]["device_info"]:
-                        device_data = {**device}
+                for home in all_homes:
+                    devices = connector.get_devices(current_server, home["home_id"], home["home_owner"])
+                    home["devices"] = []
+                    if devices is not None:
+                        if devices["result"]["device_info"] is None or len(devices["result"]["device_info"]) == 0:
+                            print_if_interactive(f'{Fore.RED}No devices found for server "{current_server}" @ home "{home["home_id"]}".')
+                            continue
+                        print_if_interactive(f'Devices found for server "{current_server}" @ home "{home["home_id"]}":')
+                        for device in devices["result"]["device_info"]:
+                            device_data = {**device}
+                            print_tabbed(f"{Fore.BLUE}---------", 3)
+                            if "name" in device:
+                                print_entry("NAME", device["name"], 3)
+                            if "did" in device:
+                                print_entry("ID", device["did"], 3)
+                                if "blt" in device["did"]:
+                                    beaconkey = connector.get_beaconkey(current_server, device["did"])
+                                    if beaconkey and "result" in beaconkey and "beaconkey" in beaconkey["result"]:
+                                        print_entry("BLE KEY", beaconkey["result"]["beaconkey"], 3)
+                                        device_data["BLE_DATA"] = beaconkey["result"]
+                            if "mac" in device:
+                                print_entry("MAC", device["mac"], 3)
+                            if "localip" in device:
+                                print_entry("IP", device["localip"], 3)
+                            if "token" in device:
+                                print_entry("TOKEN", device["token"], 3)
+                            if "model" in device:
+                                print_entry("MODEL", device["model"], 3)
+                            home["devices"].append(device_data)
                         print_tabbed(f"{Fore.BLUE}---------", 3)
-                        if "name" in device:
-                            print_entry("NAME", device["name"], 3)
-                        if "did" in device:
-                            print_entry("ID", device["did"], 3)
-                            if "blt" in device["did"]:
-                                beaconkey = connector.get_beaconkey(current_server, device["did"])
-                                if beaconkey and "result" in beaconkey and "beaconkey" in beaconkey["result"]:
-                                    print_entry("BLE KEY", beaconkey["result"]["beaconkey"], 3)
-                                    device_data["BLE_DATA"] = beaconkey["result"]
-                        if "mac" in device:
-                            print_entry("MAC", device["mac"], 3)
-                        if "localip" in device:
-                            print_entry("IP", device["localip"], 3)
-                        if "token" in device:
-                            print_entry("TOKEN", device["token"], 3)
-                        if "model" in device:
-                            print_entry("MODEL", device["model"], 3)
-                        home["devices"].append(device_data)
-                    print_tabbed(f"{Fore.BLUE}---------", 3)
-                    print_if_interactive()
-                else:
-                    print_if_interactive(f"{Fore.RED}Unable to get devices from server {current_server}.")
-            output.append({"server": current_server, "homes": all_homes})
+                        print_if_interactive()
+                    else:
+                        print_if_interactive(f"{Fore.RED}Unable to get devices from server {current_server}.")
+                output.append({"server": current_server, "homes": all_homes})
+            except requests.exceptions.RequestException as e:
+                print_if_interactive(f'{Fore.RED}Server "{current_server}" is unreachable, skipping: {e}')
+                _LOGGER.debug("Network error while processing server %s: %s", current_server, e)
+                continue
         write_devices_report(output, username=getattr(connector, "_username", None))
         if args.output:
             with open(args.output, "w") as f:
