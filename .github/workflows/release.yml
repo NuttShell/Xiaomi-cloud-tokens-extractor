@@ -131,6 +131,9 @@ jobs:
                   exe.write_bytes(data)
                   print(f"Stripped Rich header: offset {ds}..{rich + 8}")
           PYEOF
+      - name: Smoke-test the built exe
+        timeout-minutes: 1
+        run: dist/token_extractor.exe --help
       - name: Archive built file
         uses: actions/upload-artifact@v4
         with:
