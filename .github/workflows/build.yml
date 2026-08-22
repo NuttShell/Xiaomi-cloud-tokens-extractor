@@ -74,12 +74,48 @@ jobs:
         name: Setup Python
         with:
           python-version: '3.14.x'
-      - name: Install pyinstaller
-        run: pip3 install -U pyinstaller
+      - name: Build PyInstaller bootloader from source
+        # Installing PyInstaller normally pulls a prebuilt wheel with a
+        # precompiled bootloader binary that's identical for every user who
+        # doesn't rebuild it -- since that same stock binary is also used by
+        # a lot of malware packaged with PyInstaller, AV heuristics learn to
+        # flag it on sight, regardless of what's actually inside. Building
+        # our own bootloader from source produces a unique binary that
+        # doesn't match that pattern.
+        env:
+          PYINSTALLER_COMPILE_BOOTLOADER: "1"
+        run: |
+          pip download --no-binary pyinstaller --no-deps --no-cache-dir -d pyinstaller_src pyinstaller
+          pip install (Get-ChildItem pyinstaller_src\*.tar.gz).FullName
       - name: Install dependencies
         run: pip3 install -r requirements.txt
       - name: Run pyinstaller
         run: pyinstaller token_extractor.spec
+      - name: Strip Rich PE header
+        # The MSVC linker embeds a "Rich" header with build-environment
+        # metadata into every PE it produces; some AV/YARA rules fingerprint
+        # off it too. Zeroing it out removes that signal as well.
+        shell: bash
+        run: |
+          python - <<'PYEOF'
+          import struct, pathlib
+
+          exe = pathlib.Path("dist/token_extractor.exe")
+          data = bytearray(exe.read_bytes())
+          rich = data.find(b"Rich")
+          if rich == -1:
+              print("Rich header not found, skipping")
+          else:
+              ck = struct.unpack_from("<I", data, rich + 4)[0]
+              dans = struct.pack("<I", 0x536E6144 ^ ck)
+              ds = data.find(dans)
+              if ds == -1:
+                  print("DanS marker not found, skipping")
+              else:
+                  data[ds:rich + 8] = b"\x00" * (rich + 8 - ds)
+                  exe.write_bytes(data)
+                  print(f"Stripped Rich header: offset {ds}..{rich + 8}")
+          PYEOF
       - name: Archive built file
         uses: actions/upload-artifact@v4
         with:
