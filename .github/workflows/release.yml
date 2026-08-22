@@ -98,13 +98,39 @@ jobs:
       - uses: actions/setup-python@v5
         name: Setup Python
         with:
-          python-version: '3.14.x'
-      - name: Install pyinstaller
-        run: pip3 install -U pyinstaller
+          python-version: '3.13.x'
+      - name: Build PyInstaller bootloader from source
+        env:
+          PYINSTALLER_COMPILE_BOOTLOADER: "1"
+        run: |
+          pip download --no-binary pyinstaller --no-deps --no-cache-dir -d pyinstaller_src pyinstaller
+          pip install (Get-ChildItem pyinstaller_src\*.tar.gz).FullName
       - name: Install dependencies
         run: pip3 install -r requirements.txt
       - name: Run pyinstaller
         run: pyinstaller token_extractor.spec
+      - name: Strip Rich PE header
+        shell: bash
+        run: |
+          python - <<'PYEOF'
+          import struct, pathlib
+
+          exe = pathlib.Path("dist/token_extractor.exe")
+          data = bytearray(exe.read_bytes())
+          rich = data.find(b"Rich")
+          if rich == -1:
+              print("Rich header not found, skipping")
+          else:
+              ck = struct.unpack_from("<I", data, rich + 4)[0]
+              dans = struct.pack("<I", 0x536E6144 ^ ck)
+              ds = data.find(dans)
+              if ds == -1:
+                  print("DanS marker not found, skipping")
+              else:
+                  data[ds:rich + 8] = b"\x00" * (rich + 8 - ds)
+                  exe.write_bytes(data)
+                  print(f"Stripped Rich header: offset {ds}..{rich + 8}")
+          PYEOF
       - name: Archive built file
         uses: actions/upload-artifact@v4
         with:
