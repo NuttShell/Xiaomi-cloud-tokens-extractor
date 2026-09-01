@@ -98,13 +98,13 @@ jobs:
       - uses: actions/setup-python@v5
         name: Setup Python
         with:
-          python-version: '3.14.x'
+          python-version: '3.13.x'
       - name: Build PyInstaller bootloader from source
         env:
           PYINSTALLER_COMPILE_BOOTLOADER: "1"
         run: |
           pip download --no-binary pyinstaller --no-deps --no-cache-dir -d pyinstaller_src pyinstaller
-          pip install (Get-ChildItem pyinstaller_src\*.tar.gz).FullName
+          pip install --verbose (Get-ChildItem pyinstaller_src\*.tar.gz).FullName
       - name: Install dependencies
         run: pip3 install -r requirements.txt
       - name: Run pyinstaller
