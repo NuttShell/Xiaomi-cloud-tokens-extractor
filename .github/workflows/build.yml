@@ -86,7 +86,7 @@ jobs:
           PYINSTALLER_COMPILE_BOOTLOADER: "1"
         run: |
           pip download --no-binary pyinstaller --no-deps --no-cache-dir -d pyinstaller_src pyinstaller
-          pip install (Get-ChildItem pyinstaller_src\*.tar.gz).FullName
+          pip install --verbose (Get-ChildItem pyinstaller_src\*.tar.gz).FullName
       - name: Install dependencies
         run: pip3 install -r requirements.txt
       - name: Run pyinstaller
