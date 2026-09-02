@@ -15,11 +15,9 @@ curl --silent --fail --show-error --location --remote-name --remote-header-name 
   https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor/releases/latest/download/token_extractor.zip
 unzip token_extractor.zip
 cd token_extractor
-python3 -m venv .venv
-source .venv/bin/activate
+python3 -m venv .venv && source .venv/bin/activate
 pip3 install -r requirements.txt
 python3 token_extractor.py --serve-image --host "$host_to_pass"
 deactivate
 cd ..
-cp token_extractor/xiaomi_tokens_*.txt . 2>/dev/null || true
 rm -rf token_extractor token_extractor.zip
