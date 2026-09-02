@@ -20,4 +20,4 @@ pip3 install -r requirements.txt
 python3 token_extractor.py --serve-image --host "$host_to_pass"
 deactivate
 cd ..
-rm -rf token_extractor token_extractor.zip
+rm -rf token_extractor.zip
