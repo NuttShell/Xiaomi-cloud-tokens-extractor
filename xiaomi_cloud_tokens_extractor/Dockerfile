@@ -7,7 +7,7 @@ WORKDIR /usr/src/app
 #       existing, unmodified interactive script run inside the HA ingress UI
 #       instead of needing a rewrite into a web app.
 # curl/unzip: to fetch the released token_extractor.py below.
-RUN apk add --no-cache build-base ttyd curl unzip bash
+RUN apk add --no-cache build-base ttyd curl unzip bash jq
 
 # Always build against the latest published release of the fork, so this
 # add-on never drifts out of sync with token_extractor.py -- same

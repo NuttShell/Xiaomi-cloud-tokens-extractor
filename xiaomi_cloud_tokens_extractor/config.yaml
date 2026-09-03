@@ -13,6 +13,8 @@ startup: application
 boot: manual
 ingress: true
 ingress_port: 7681
+hassio_api: true
+hassio_role: manager
 panel_icon: mdi:key-variant
 panel_title: Xiaomi Tokens
 ports:
