@@ -66,5 +66,6 @@ exec ttyd -t cursorStyle=bar -t lineHeight=1.5 -t 'theme={"background": "black"}
 				;;
         esac
     fi
+	clear
     python3 token_extractor.py "$@"
 ' _ "${ARGS[@]}"
