@@ -1,25 +1,24 @@
+<# : batch cmd
 @echo off
 setlocal EnableDelayedExpansion
+
+set "version=26.0902"
 set "SCRIPTDIR=%~dp0"
 set "SCRIPTDIR=%SCRIPTDIR:~0,-1%"
-set "PS1FILE=%TEMP%\pspython_%RANDOM%.ps1"
-set "version=26.0807"
 
-powershell -NoProfile -Command "$c = Get-Content -LiteralPath '%~f0' -Raw -Encoding UTF8; $idx = $c.LastIndexOf('REM_PS1_CODE_START'); $code = $c.Substring($idx + 18).TrimStart([char]13,[char]10); Set-Content -LiteralPath '%PS1FILE%' -Value $code -Encoding UTF8 -NoNewline"
+set ARGS= %*
+if defined ARGS set "ARGS=%ARGS:"=\"%"
+if defined ARGS set "ARGS=%ARGS:'=''%"
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1FILE%" -ScriptDir "%SCRIPTDIR%" %*
+powershell -NoProfile -ExecutionPolicy Bypass -c ^"$ScriptDir='%SCRIPTDIR%'; Invoke-Expression ('^& {' + (get-content -raw '%~f0') + '} %ARGS%')"
 
 set "RC=%errorlevel%"
-
-del "%PS1FILE%" >nul 2>&1
-
 if not "%RC%"=="0" pause
-exit /b %RC%
 
-REM_PS1_CODE_START
+exit /b %RC%
+#>
 
 param(
-    [string]$ScriptDir,
     [string]$PyVer = "",
     [string]$Arch  = ""
 )
@@ -27,6 +26,8 @@ param(
 $DEFAULT_PACKAGES = @(
     "pyinstaller"
 )
+
+if (-not $ScriptDir) { $ScriptDir = $PSScriptRoot }
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
