@@ -48,6 +48,7 @@ exec ttyd -p 7681 -W bash -c '
     echo "  (D) -- delete all report"
     echo "  (E) -- close this session"
     echo "-------------------------------------------------------------"
+	read -r -p "[V]iew all, [D]elete all, or press Enter to run the extractor: " CHOICE
 	case "${CHOICE^^}" in
             V)
 				echo "--- Begin ---"
