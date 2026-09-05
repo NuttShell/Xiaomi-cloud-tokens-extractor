@@ -38,14 +38,30 @@ fi
 # not).
 exec ttyd -p 7681 -W bash -c '
     python3 token_extractor.py "$@"
+	reports=(xiaomi_tokens_*.txt)
+	if [ ${#reports[@]} -gt 0 ]; then
+	echo "Existing report(s) found:"
+	printf "  %s\n" "${reports[@]}"
     echo
     echo "-------------------------------------------------------------"
-    echo "Script finished. Files in this directory:"
-    ls -la
-    echo
-    echo "  cat xiaomi_tokens_*.txt   -- view the report"
-    echo "  rm xiaomi_tokens_*.txt    -- delete it"
-    echo "  exit                      -- close this session"
+    echo "  (V) -- view all report"
+    echo "  (D) -- delete all report"
+    echo "  (E) -- close this session"
     echo "-------------------------------------------------------------"
-    exec bash
+	case "${CHOICE^^}" in
+            V)
+				echo "--- Begin ---"
+                cat xiaomi_tokens_*.txt
+                echo "--- end ---"
+                echo
+                read -r -p "Press Enter to continue to the extractor: " _
+                ;;
+            D)
+                rm -f xiaomi_tokens_*.txt
+                echo "Deleted."
+                ;;
+			E)  exec bash
+        esac
+    fi
+    python3 token_extractor.py "$@"
 ' _ "${ARGS[@]}"
