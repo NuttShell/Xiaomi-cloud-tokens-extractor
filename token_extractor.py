@@ -45,11 +45,11 @@ def set_console_title(title: str) -> None:
             pass
 
 
-set_console_title("Xiaomi Cloud Tokens Extractor")
+set_console_title("Xiaomi Cloud Tokens Extractor Mod")
 
 SERVERS = ["cn", "de", "us", "ru", "tw", "sg", "in", "i2"]
 
-VERSION = "1.0.3.1"
+VERSION = "1.0.4"
 
 # Some regional API endpoints can be unreachable from a given network
 # (blocked, geo-restricted, no route, etc.) rather than just slow. Without an
@@ -993,6 +993,8 @@ def format_devices_report(output: list, generated_at: str, username: str | None 
                 lines.append("    ---------")
                 if device.get("name"):
                     lines.append(f'    NAME:    {device["name"]}')
+                if device.get("model"):
+                    lines.append(f'    MODEL:   {device["model"]}')
                 if device.get("did"):
                     lines.append(f'    ID:      {device["did"]}')
                 ble = device.get("BLE_DATA") or {}
@@ -1004,8 +1006,6 @@ def format_devices_report(output: list, generated_at: str, username: str | None 
                     lines.append(f'    IP:      {device["localip"]}')
                 if device.get("token"):
                     lines.append(f'    TOKEN:   {device["token"]}')
-                if device.get("model"):
-                    lines.append(f'    MODEL:   {device["model"]}')
             lines.append("    ---------")
             lines.append("")
     return "\n".join(lines)
@@ -1030,10 +1030,12 @@ def write_devices_report(output: list, username: str | None = None) -> None:
 
 
 def print_banner() -> None:
-    print_if_interactive(f"{Fore.LIGHTYELLOW_EX}{Style.BRIGHT}Xiaomi Cloud Tokens Extractor{Style.NORMAL} -- mod v{VERSION}")
-    print_if_interactive(f"{Fore.LIGHTCYAN_EX}Based on the original by Piotr Machowski{Style.RESET_ALL}")
-    print_if_interactive(f"{Fore.LIGHTCYAN_EX}https://github.com/PiotrMachowski/Xiaomi-cloud-tokens-extractor{Style.RESET_ALL}")
-    print_if_interactive(f"{Fore.LIGHTCYAN_EX}This mod: https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor{Style.RESET_ALL}")
+    print_if_interactive(f"{Fore.LIGHTYELLOW_EX}{Style.BRIGHT}Xiaomi{Style.NORMAL}")
+    print_if_interactive(f"{Fore.LIGHTYELLOW_EX}{Style.BRIGHT}Cloud Tokens Extractor{Style.NORMAL} -- mod v{VERSION}")
+    print_if_interactive()
+    print_if_interactive(f"{Fore.LIGHTWHITE_EX}Based on the original by Piotr Machowski{Style.RESET_ALL}")
+    print_if_interactive(f"{Fore.LIGHTWHITE_EX}https://github.com/PiotrMachowski/Xiaomi-cloud-tokens-extractor{Style.RESET_ALL}")
+    print_if_interactive(f"{Fore.LIGHTWHITE_EX}This mod: https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor{Style.RESET_ALL}")
     print_if_interactive()
 
 
@@ -1245,6 +1247,8 @@ def main() -> None:
                             print_tabbed(f"{Fore.LIGHTCYAN_EX}---------", 3)
                             if "name" in device:
                                 print_entry("NAME", device["name"], 3)
+                            if "model" in device:
+                                print_entry("MODEL", device["model"], 3)
                             if "did" in device:
                                 print_entry("ID", device["did"], 3)
                                 if "blt" in device["did"]:
@@ -1258,8 +1262,7 @@ def main() -> None:
                                 print_entry("IP", device["localip"], 3)
                             if "token" in device:
                                 print_entry("TOKEN", device["token"], 3)
-                            if "model" in device:
-                                print_entry("MODEL", device["model"], 3)
+
                             home["devices"].append(device_data)
                         print_tabbed(f"{Fore.LIGHTCYAN_EX}---------", 3)
                         print_if_interactive()
