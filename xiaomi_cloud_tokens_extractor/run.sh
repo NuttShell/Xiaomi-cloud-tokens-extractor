@@ -36,8 +36,8 @@ fi
 # you remove them yourself, or if the add-on's container is rebuilt
 # (Rebuild/reinstall wipes its writable filesystem; a plain Restart does
 # not).
-exec ttyd -t cursorStyle=bar -t lineHeight=1.25 -t 'theme={"background": "black"}' -p 7681 -W bash -c '
-	echo "v.1.0.41"
+exec ttyd -t cursorStyle=bar -t 'theme={"background": "black"}' -p 7681 -W bash -c '
+	echo "v.1.0.42"
     python3 token_extractor.py "$@"
     shopt -s nullglob
     reports=(xiaomi_tokens_*.txt)
@@ -48,24 +48,32 @@ exec ttyd -t cursorStyle=bar -t lineHeight=1.25 -t 'theme={"background": "black"
 	printf "  %s\n" "${reports[@]}"
     echo
     echo "-------------------------------------------------------------"
-    echo "  (V) -- view all report"
-    echo "  (D) -- delete all report"
+	echo "  (L) -- view Latest report"
+    echo "  (V) -- view All report"
+    echo "  (D) -- Delete all report"
     echo "-------------------------------------------------------------"
 	read -r -p "[V]iew all, [D]elete all, or press Enter to run the extractor: " CHOICE
 	case "${CHOICE^^}" in
+            L)
+                latest=$(ls -t xiaomi_tokens_*.txt | head -1)
+                echo "---- $latest ----"
+                cat "$latest"
+                echo "---- end ----"
+                echo
+                ;;
             V)
 				echo
 				echo "--- Begin ---"
                 cat xiaomi_tokens_*.txt
                 echo "---- end ----"
                 echo
-				read -r -p "Press Enter to continue: " _
                 ;;
             D)
                 rm -f xiaomi_tokens_*.txt
                 echo
 				echo "Deleted all xiaomi_tokens."
                 ;;
+		read -r -p "Press Enter to continue: " _		
         esac
     fi
 	clear
