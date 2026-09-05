@@ -37,6 +37,7 @@ fi
 # (Rebuild/reinstall wipes its writable filesystem; a plain Restart does
 # not).
 exec ttyd -t cursorStyle=bar -t lineHeight=1.5 -t 'theme={"background": "black"}' -p 7681 -W bash -c '
+	echo "v.1.0.4"
     python3 token_extractor.py "$@"
     shopt -s nullglob
     reports=(xiaomi_tokens_*.txt)
