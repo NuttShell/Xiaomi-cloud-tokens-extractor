@@ -52,7 +52,7 @@ exec ttyd -t cursorStyle=bar -t 'theme={"background": "black"}' -p 7681 -W bash 
     echo "  (V) -- view All report"
     echo "  (D) -- Delete all report"
     echo "-------------------------------------------------------------"
-    read -r -p "[V]iew all, [D]elete all, or press Enter to continue: " CHOICE
+    read -r -p "[V]iew all, [D]elete all, or press Enter to exit: " CHOICE
     case "${CHOICE^^}" in
             L)
                 latest=$(ls -t xiaomi_tokens_*.txt | head -1)
@@ -62,6 +62,7 @@ exec ttyd -t cursorStyle=bar -t 'theme={"background": "black"}' -p 7681 -W bash 
                 cat "$latest"
                 echo "---- end ----"
                 echo
+                read -n 1 -s -r -p "Press any key to continue: " _
                 ;;
             V)
                 echo
@@ -70,6 +71,7 @@ exec ttyd -t cursorStyle=bar -t 'theme={"background": "black"}' -p 7681 -W bash 
                 cat xiaomi_tokens_*.txt
                 echo "---- end ----"
                 echo
+                read -n 1 -s -r -p "Press any key to continue: " _
                 ;;
             D)
                 rm -f xiaomi_tokens_*.txt
@@ -77,9 +79,10 @@ exec ttyd -t cursorStyle=bar -t 'theme={"background": "black"}' -p 7681 -W bash 
                 echo
                 echo "Deleted all xiaomi_tokens."
                 echo
+                read -n 1 -s -r -p "Press any key to continue: " _
                 ;;
         esac
     fi
-    read -n 1 -s -r -p "Press any key to continue: " _
-    clear
+#    read -n 1 -s -r -p "Press any key to continue: " _
+   clear
 ' _ "${ARGS[@]}"
