@@ -16,7 +16,7 @@ RUN apk add --no-cache build-base ttyd curl unzip bash jq
 # not the script itself -- rebuilding the add-on always pulls whatever is
 # currently the latest GitHub release.
 RUN curl -fL -o token_extractor.zip \
-        "https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor/releases/latest/download/token_extractor.zip?v=cvvbfg" && \
+        "https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor/releases/latest/download/token_extractor.zip?v=lknufcd" && \
     unzip token_extractor.zip && \
     mv token_extractor/token_extractor.py token_extractor/requirements.txt . && \
     rm -rf token_extractor.zip token_extractor
