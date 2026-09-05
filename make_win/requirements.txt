@@ -1,6 +1,0 @@
-requests
-PySocks
-pycryptodome
-charset-normalizer
-Pillow
-colorama
