@@ -57,6 +57,9 @@ jobs:
           mkdir -p win_build
           cp -r make_win/. win_build/
           cp token_extractor.py win_build/
+          cp token_extractor.spec win_build/
+          cp icon.ico win_build/
+          cp requirements.txt win_build/
           zip win_build.zip -r win_build
           rm -rf win_build
       - name: Archive built file
