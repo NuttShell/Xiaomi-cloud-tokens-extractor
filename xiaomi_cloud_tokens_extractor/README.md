@@ -1,6 +1,6 @@
 <h2 align="left">
   <a href="https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor/xiaomi_cloud_tokens_extractor">
-    <img src="./logo.png" alt="NuttShell - GitHub">
+    <img src="logo.png" alt="NuttShell - GitHub">
   </a>
 </h2>
 
