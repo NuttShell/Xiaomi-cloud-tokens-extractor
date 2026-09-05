@@ -80,6 +80,6 @@ exec ttyd -t cursorStyle=bar -t 'theme={"background": "black"}' -p 7681 -W bash 
                 ;;
         esac
     fi
-    read -r -p "Press Enter to continue: " _
+    read -n 1 -s -r -p "Press any key to continue: " _
     clear
 ' _ "${ARGS[@]}"
