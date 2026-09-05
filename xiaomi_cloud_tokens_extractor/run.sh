@@ -52,7 +52,7 @@ exec ttyd -t cursorStyle=bar -t 'theme={"background": "black"}' -p 7681 -W bash 
     echo "  (V) -- view All report"
     echo "  (D) -- Delete all report"
     echo "-------------------------------------------------------------"
-    read -r -p "[V]iew all, [D]elete all, or press Enter to run the extractor: " CHOICE
+    read -r -p "[V]iew all, [D]elete all, or press Enter to continue: " CHOICE
     case "${CHOICE^^}" in
             L)
                 latest=$(ls -t xiaomi_tokens_*.txt | head -1)
