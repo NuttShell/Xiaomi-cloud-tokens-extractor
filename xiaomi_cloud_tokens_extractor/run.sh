@@ -60,7 +60,9 @@ exec ttyd -p 7681 -W bash -c '
                 rm -f xiaomi_tokens_*.txt
                 echo "Deleted."
                 ;;
-			E)  exec bash
+			E)  
+				exec bash
+				;;
         esac
     fi
     python3 token_extractor.py "$@"
