@@ -38,34 +38,33 @@ fi
 # not).
 exec ttyd -t cursorStyle=bar -t lineHeight=1.5 -t 'theme={"background": "black"}' -p 7681 -W bash -c '
     python3 token_extractor.py "$@"
-	reports=(xiaomi_tokens_*.txt)
+    shopt -s nullglob
+    reports=(xiaomi_tokens_*.txt)
+    shopt -u nullglob
 	if [ ${#reports[@]} -gt 0 ]; then
+	echo
 	echo "Existing report(s) found:"
 	printf "  %s\n" "${reports[@]}"
     echo
     echo "-------------------------------------------------------------"
     echo "  (V) -- view all report"
     echo "  (D) -- delete all report"
-    echo "  (E) -- close this session"
     echo "-------------------------------------------------------------"
 	read -r -p "[V]iew all, [D]elete all, or press Enter to run the extractor: " CHOICE
 	case "${CHOICE^^}" in
             V)
+				echo
 				echo "--- Begin ---"
                 cat xiaomi_tokens_*.txt
                 echo "--- end ---"
                 echo
-                read -r -p "Press Enter to continue to the extractor: " _
                 ;;
             D)
                 rm -f xiaomi_tokens_*.txt
-                echo "Deleted."
+                echo
+				echo "Deleted all xiaomi_tokens."
                 ;;
-			E)  
-				exec bash
-				;;
         esac
     fi
 	clear
-    python3 token_extractor.py "$@"
 ' _ "${ARGS[@]}"
