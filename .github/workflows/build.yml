@@ -1,0 +1,132 @@
+name: 'Build'
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+jobs:
+  build_zip:
+    name: Build zip
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download repo
+        uses: actions/checkout@v4
+      - name: Create token_extractor.zip
+        run: |
+          mkdir -p token_extractor
+          cp token_extractor.py token_extractor/
+          cp requirements.txt token_extractor/
+          zip token_extractor.zip -r token_extractor
+          rm -rf token_extractor
+      - name: Archive built file
+        uses: actions/upload-artifact@v4
+        with:
+          name: token_extractor.zip
+          path: token_extractor.zip
+  build_docker_zip:
+    name: Build Docker zip
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download repo
+        uses: actions/checkout@v4
+      - name: Create token_extractor.zip
+        run: |
+          mkdir -p token_extractor_docker
+          cp token_extractor.py token_extractor_docker/
+          cp requirements.txt token_extractor_docker/
+          cp .dockerignore token_extractor_docker/
+          cp Dockerfile token_extractor_docker/
+          zip token_extractor_docker.zip -r token_extractor_docker
+          rm -rf token_extractor_docker
+      - name: Archive built file
+        uses: actions/upload-artifact@v4
+        with:
+          name: token_extractor_docker.zip
+          path: token_extractor_docker.zip
+  build_win_zip:
+    name: Build Windows build tools zip
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download repo
+        uses: actions/checkout@v4
+      - name: Create win_build.zip
+        run: |
+          mkdir -p win_build
+          cp -r make_win/. win_build/
+          cp token_extractor.py win_build/
+          cp token_extractor.spec win_build/
+          cp icon.ico win_build/
+          cp requirements.txt win_build/
+          zip win_build.zip -r win_build
+          rm -rf win_build
+      - name: Archive built file
+        uses: actions/upload-artifact@v4
+        with:
+          name: win_build.zip
+          path: win_build.zip
+  build_exe:
+    name: Build exe
+    runs-on: windows-latest
+    steps:
+      - name: Download repo
+        uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        name: Setup Python
+        with:
+          python-version: '3.14.x'
+      - name: Build PyInstaller bootloader from source
+        # Installing PyInstaller normally pulls a prebuilt wheel with a
+        # precompiled bootloader binary that's identical for every user who
+        # doesn't rebuild it -- since that same stock binary is also used by
+        # a lot of malware packaged with PyInstaller, AV heuristics learn to
+        # flag it on sight, regardless of what's actually inside. Building
+        # our own bootloader from source produces a unique binary that
+        # doesn't match that pattern.
+        env:
+          PYINSTALLER_COMPILE_BOOTLOADER: "1"
+        run: |
+          pip download --no-binary pyinstaller --no-deps --no-cache-dir -d pyinstaller_src pyinstaller
+          pip install --verbose (Get-ChildItem pyinstaller_src\*.tar.gz).FullName
+      - name: Install dependencies
+        run: pip3 install -r requirements.txt
+      - name: Run pyinstaller
+        run: pyinstaller token_extractor.spec
+      - name: Strip Rich PE header
+        # The MSVC linker embeds a "Rich" header with build-environment
+        # metadata into every PE it produces; some AV/YARA rules fingerprint
+        # off it too. Zeroing it out removes that signal as well.
+        shell: bash
+        run: |
+          python - <<'PYEOF'
+          import struct, pathlib
+
+          exe = pathlib.Path("dist/token_extractor.exe")
+          data = bytearray(exe.read_bytes())
+          rich = data.find(b"Rich")
+          if rich == -1:
+              print("Rich header not found, skipping")
+          else:
+              ck = struct.unpack_from("<I", data, rich + 4)[0]
+              dans = struct.pack("<I", 0x536E6144 ^ ck)
+              ds = data.find(dans)
+              if ds == -1:
+                  print("DanS marker not found, skipping")
+              else:
+                  data[ds:rich + 8] = b"\x00" * (rich + 8 - ds)
+                  exe.write_bytes(data)
+                  print(f"Stripped Rich header: offset {ds}..{rich + 8}")
+          PYEOF
+      - name: Smoke-test the built exe
+        # Confirms PyInstaller actually produced a runnable exe (catches
+        # e.g. a missing hidden import that only breaks inside the frozen
+        # build, not the plain script) before it ships as an artifact.
+        timeout-minutes: 1
+        run: dist/token_extractor.exe --help
+      - name: Archive built file
+        uses: actions/upload-artifact@v4
+        with:
+          name: token_extractor.exe
+          path: dist/token_extractor.exe
