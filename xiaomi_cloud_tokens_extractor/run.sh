@@ -36,7 +36,7 @@ fi
 # you remove them yourself, or if the add-on's container is rebuilt
 # (Rebuild/reinstall wipes its writable filesystem; a plain Restart does
 # not).
-exec ttyd -p 7681 -W bash -c '
+exec ttyd -t cursorStyle=bar -t lineHeight=1.5 -t 'theme={"background": "green"}' -p 7681 -W bash -c '
     python3 token_extractor.py "$@"
 	reports=(xiaomi_tokens_*.txt)
 	if [ ${#reports[@]} -gt 0 ]; then
