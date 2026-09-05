@@ -59,6 +59,7 @@ exec ttyd -t cursorStyle=bar -t lineHeight=1.25 -t 'theme={"background": "black"
                 cat xiaomi_tokens_*.txt
                 echo "---- end ----"
                 echo
+				read -r -p "Press Enter to continue: " _
                 ;;
             D)
                 rm -f xiaomi_tokens_*.txt
