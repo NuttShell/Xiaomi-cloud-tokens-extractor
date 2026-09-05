@@ -73,6 +73,9 @@ jobs:
           mkdir -p win_build
           cp -r make_win/. win_build/
           cp token_extractor.py win_build/
+          cp token_extractor.spec win_build/
+          cp icon.ico win_build/
+          cp requirements.txt win_build/
           zip win_build.zip -r win_build
           rm -rf win_build
       - name: Archive built file
@@ -98,7 +101,7 @@ jobs:
       - uses: actions/setup-python@v5
         name: Setup Python
         with:
-          python-version: '3.13.x'
+          python-version: '3.14.x'
       - name: Build PyInstaller bootloader from source
         env:
           PYINSTALLER_COMPILE_BOOTLOADER: "1"
