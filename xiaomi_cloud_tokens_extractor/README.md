@@ -1,9 +1,3 @@
-<h2 align="left">
-  <a href="https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor">
-    <img src="/xiaomi_cloud_tokens_extractor/logo.png" alt="NuttShell - GitHub">
-  </a>
-</h2>
-
 # Xiaomi Cloud Tokens Extractor
 
 Runs [token_extractor.py](https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor)
