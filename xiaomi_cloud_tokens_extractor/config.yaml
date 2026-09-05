@@ -1,5 +1,5 @@
 name: "Xiaomi Cloud Tokens Extractor"
-version: "1.0.3"
+version: "1.0.4"
 slug: xiaomi_cloud_tokens_extractor
 description: "Interactive terminal for extracting Xiaomi Cloud device tokens and BLE keys -- runs the existing tool right inside Home Assistant, no SSH needed."
 url: "https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor"
