@@ -2,6 +2,12 @@
 [![GitHub Release Date](https://img.shields.io/github/release-date/NuttShell/Xiaomi-cloud-tokens-extractor)](https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/NuttShell/Xiaomi-cloud-tokens-extractor/total)](https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor/releases)
 
+<h1 align="center">
+  <a href="https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor">
+    <img src="./xiaomi_cloud_tokens_extractor/logo.png" alt="NuttShell - GitHub">
+  </a>
+</h1>
+
 # Xiaomi Cloud Tokens Extractor
 
 _This is a fork of [PiotrMachowski/Xiaomi-cloud-tokens-extractor](https://github.com/PiotrMachowski/Xiaomi-cloud-tokens-extractor) with additional fixes and features — see [Changes vs. the original](#changes-vs-the-original-token_extractorpy) below. All credit for the original tool goes to Piotr Machowski._
