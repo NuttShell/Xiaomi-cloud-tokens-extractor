@@ -37,36 +37,36 @@ fi
 # (Rebuild/reinstall wipes its writable filesystem; a plain Restart does
 # not).
 exec ttyd -t cursorStyle=bar -t 'theme={"background": "black"}' -p 7681 -W bash -c '
-	echo "v.1.0.4"
+    echo "v.1.0.4"
     python3 token_extractor.py "$@"
     shopt -s nullglob
     reports=(xiaomi_tokens_*.txt)
     shopt -u nullglob
-	if [ ${#reports[@]} -gt 0 ]; then
-	echo
-	echo "Existing report(s) found:"
-	printf "  %s\n" "${reports[@]}"
+    if [ ${#reports[@]} -gt 0 ]; then
+    echo
+    echo "Existing report(s) found:"
+    printf "  %s\n" "${reports[@]}"
     echo
     echo "-------------------------------------------------------------"
-	echo "  (L) -- view Latest report"
+    echo "  (L) -- view Latest report"
     echo "  (V) -- view All report"
     echo "  (D) -- Delete all report"
     echo "-------------------------------------------------------------"
-	read -r -p "[V]iew all, [D]elete all, or press Enter to run the extractor: " CHOICE
-	case "${CHOICE^^}" in
+    read -r -p "[V]iew all, [D]elete all, or press Enter to run the extractor: " CHOICE
+    case "${CHOICE^^}" in
             L)
                 latest=$(ls -t xiaomi_tokens_*.txt | head -1)
-				echo
-				echo
+                echo
+                echo
                 echo "---- $latest ----"
                 cat "$latest"
                 echo "---- end ----"
                 echo
                 ;;
             V)
-				echo
-				echo
-				echo "--- Begin ---"
+                echo
+                echo
+                echo "--- Begin ---"
                 cat xiaomi_tokens_*.txt
                 echo "---- end ----"
                 echo
@@ -74,12 +74,12 @@ exec ttyd -t cursorStyle=bar -t 'theme={"background": "black"}' -p 7681 -W bash 
             D)
                 rm -f xiaomi_tokens_*.txt
                 echo
-				echo
-				echo "Deleted all xiaomi_tokens."
-				echo
+                echo
+                echo "Deleted all xiaomi_tokens."
+                echo
                 ;;
-        esac	
+        esac
     fi
-	read -r -p "Press Enter to continue: " _
-	clear
+    read -r -p "Press Enter to continue: " _
+    clear
 ' _ "${ARGS[@]}"
