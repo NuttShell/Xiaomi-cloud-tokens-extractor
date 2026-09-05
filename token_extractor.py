@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 import argparse
 import atexit
 import base64
+import concurrent.futures
 import hashlib
 import hmac
 import json
@@ -48,12 +49,38 @@ set_console_title("Xiaomi Cloud Tokens Extractor")
 
 SERVERS = ["cn", "de", "us", "ru", "tw", "sg", "in", "i2"]
 
+VERSION = "1.0.3.1"
+
 # Some regional API endpoints can be unreachable from a given network
 # (blocked, geo-restricted, no route, etc.) rather than just slow. Without an
 # explicit timeout, requests/urllib3 will wait on the OS's own TCP-level
 # timeout, which can take a long time and varies by platform. This bounds it
 # to something predictable.
 API_REQUEST_TIMEOUT = 15  # seconds
+
+
+def request_with_hard_deadline(fn, timeout):
+    """Run fn() with a wall-clock deadline that covers the *entire* call,
+    including DNS resolution -- unlike requests' own `timeout=` parameter,
+    which only bounds the socket connect/read phases. DNS lookups
+    (getaddrinfo) happen before that and aren't covered at all; on some
+    networks -- notably seen inside Alpine/musl-based Docker containers --
+    DNS resolution itself can hang far longer than any requests timeout,
+    defeating it entirely. Runs fn() in a background thread and raises
+    concurrent.futures.TimeoutError if it doesn't finish in time; the
+    thread itself is abandoned (Python has no safe way to kill a thread
+    stuck in a C-level network call), which is fine for a short-lived CLI
+    tool that will exit soon anyway."""
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(fn)
+    try:
+        return future.result(timeout=timeout)
+    finally:
+        # wait=False is essential here: the default `with ThreadPoolExecutor()`
+        # context-manager behavior (and shutdown(wait=True)) blocks until the
+        # thread actually finishes -- which, for a genuinely stuck call, is
+        # exactly the hang we're trying to bound in the first place.
+        executor.shutdown(wait=False)
 
 # Folder the report file gets written to: next to the script, or next to the
 # .exe if this is running as a PyInstaller-built executable (sys.executable
@@ -99,13 +126,13 @@ init(autoreset=True)
 
 class ColorFormatter(logging.Formatter):
     COLORS = {
-        "CRITICAL": Fore.RED + Style.BRIGHT,
-        "FATAL": Fore.RED + Style.BRIGHT,
-        "ERROR": Fore.RED,
-        "WARN": Fore.YELLOW,
-        "WARNING": Fore.YELLOW,
-        "INFO": Fore.GREEN,
-        "DEBUG": Fore.BLUE,
+        "CRITICAL": Fore.LIGHTRED_EX + Style.BRIGHT,
+        "FATAL": Fore.LIGHTRED_EX + Style.BRIGHT,
+        "ERROR": Fore.LIGHTRED_EX,
+        "WARN": Fore.LIGHTYELLOW_EX,
+        "WARNING": Fore.LIGHTYELLOW_EX,
+        "INFO": Fore.LIGHTGREEN_EX,
+        "DEBUG": Fore.LIGHTCYAN_EX,
     }
 
     def format(self, record: logging.LogRecord) -> str:
@@ -372,16 +399,16 @@ class PasswordXiaomiCloudConnector(XiaomiCloudConnector):
         if args.username:
             self._username = args.username
         else:
-            print_if_interactive(f"Username {Fore.BLUE}(email, phone number or user ID){Style.RESET_ALL}:")
+            print_if_interactive(f"Username {Fore.LIGHTCYAN_EX}(email, phone number or user ID){Style.RESET_ALL}:")
             self._username = input()
         if args.password:
             self._password = args.password
         else:
-            print_if_interactive(f"Password {Fore.BLUE}(not displayed for privacy reasons){Style.RESET_ALL}:")
+            print_if_interactive(f"Password {Fore.LIGHTCYAN_EX}(not displayed for privacy reasons){Style.RESET_ALL}:")
             self._password = getpass("")
 
         print_if_interactive()
-        print_if_interactive(f"{Fore.BLUE}Logging in...")
+        print_if_interactive(f"{Fore.LIGHTCYAN_EX}Logging in...")
         print_if_interactive()
 
         self._session.cookies.set("sdkVersion", "accountsdk-18.8.15", domain="mi.com")
@@ -390,15 +417,15 @@ class PasswordXiaomiCloudConnector(XiaomiCloudConnector):
         self._session.cookies.set("deviceId", self._device_id, domain="xiaomi.com")
 
         if not self.login_step_1():
-            print_if_interactive(f"{Fore.RED}Invalid username.")
+            print_if_interactive(f"{Fore.LIGHTRED_EX}Invalid username.")
             return False
 
         if not self.login_step_2():
-            print_if_interactive(f"{Fore.RED}Invalid login or password.")
+            print_if_interactive(f"{Fore.LIGHTRED_EX}Invalid login or password.")
             return False
 
         if self._location and not self._serviceToken and not self.login_step_3():
-            print_if_interactive(f"{Fore.RED}Unable to get service token.")
+            print_if_interactive(f"{Fore.LIGHTRED_EX}Unable to get service token.")
             return False
 
         return True
@@ -483,10 +510,10 @@ class PasswordXiaomiCloudConnector(XiaomiCloudConnector):
                     if "code" in json_resp and json_resp["code"] == 87001:
                         remaining = max_captcha_attempts - captcha_attempt
                         if remaining <= 0:
-                            print_if_interactive(f"{Fore.RED}Invalid captcha.")
+                            print_if_interactive(f"{Fore.LIGHTRED_EX}Invalid captcha.")
                             return False
                         print_if_interactive(
-                            f"{Fore.YELLOW}Invalid captcha, let's try again "
+                            f"{Fore.LIGHTYELLOW_EX}Invalid captcha, let's try again "
                             f"({remaining} more {'attempt' if remaining == 1 else 'attempts'}).")
                         # The server may hand back a fresh captchaUrl along
                         # with the failure -- use it if so, otherwise just
@@ -544,16 +571,16 @@ class PasswordXiaomiCloudConnector(XiaomiCloudConnector):
                 _LOGGER.error("Unable to fetch captcha image.")
                 return ""
 
-            print_if_interactive(f"{Fore.YELLOW}Captcha verification required.")
+            print_if_interactive(f"{Fore.LIGHTYELLOW_EX}Captcha verification required.")
             present_image_image(
                 response.content,
-                message_url = f"Image URL: {Fore.BLUE}http://{args.host or '127.0.0.1'}:31415{Style.RESET_ALL}",
+                message_url = f"Image URL: {Fore.LIGHTCYAN_EX}http://{args.host or '127.0.0.1'}:31415{Style.RESET_ALL}",
                 message_file_saved = "Captcha image saved at: {}",
                 message_manually_open_file = "Please open {} and solve the captcha."
             )
 
             remaining = max_attempts - attempt
-            prompt = f"Enter captcha as shown in the image {Fore.BLUE}(case-sensitive){Style.RESET_ALL}"
+            prompt = f"Enter captcha as shown in the image {Fore.LIGHTCYAN_EX}(case-sensitive){Style.RESET_ALL}"
             if remaining > 0:
                 prompt += f", or just press Enter for a new image if it's unreadable ({remaining} more {'try' if remaining == 1 else 'tries'}):"
             else:
@@ -566,7 +593,7 @@ class PasswordXiaomiCloudConnector(XiaomiCloudConnector):
             if captcha_solution or remaining == 0:
                 return captcha_solution
 
-            print_if_interactive(f"{Fore.YELLOW}Requesting a new captcha image...")
+            print_if_interactive(f"{Fore.LIGHTYELLOW_EX}Requesting a new captcha image...")
 
         return ""
 
@@ -624,7 +651,7 @@ class PasswordXiaomiCloudConnector(XiaomiCloudConnector):
         if args.non_interactive:
             parser.error("Email verification code required, rerun without --non_interactive")
 
-        print_if_interactive(f"{Fore.YELLOW}Two factor authentication required, please provide the code from the email.")
+        print_if_interactive(f"{Fore.LIGHTYELLOW_EX}Two factor authentication required, please provide the code from the email.")
         print_if_interactive()
         print_if_interactive("2FA Code:")
         code = input().strip()
@@ -775,19 +802,19 @@ class QrCodeXiaomiCloudConnector(XiaomiCloudConnector):
     def login(self) -> bool:
 
         if not self.login_step_1():
-            print_if_interactive(f"{Fore.RED}Unable to get login message.")
+            print_if_interactive(f"{Fore.LIGHTRED_EX}Unable to get login message.")
             return False
 
         if not self.login_step_2():
-            print_if_interactive(f"{Fore.RED}Unable to get login QR Image.")
+            print_if_interactive(f"{Fore.LIGHTRED_EX}Unable to get login QR Image.")
             return False
 
         if not self.login_step_3():
-            print_if_interactive(f"{Fore.RED}Unable to login.")
+            print_if_interactive(f"{Fore.LIGHTRED_EX}Unable to login.")
             return False
 
         if not self.login_step_4():
-            print_if_interactive(f"{Fore.RED}Unable to get service token.")
+            print_if_interactive(f"{Fore.LIGHTRED_EX}Unable to get service token.")
             return False
 
         return True
@@ -829,17 +856,17 @@ class QrCodeXiaomiCloudConnector(XiaomiCloudConnector):
         valid: bool = response is not None and response.status_code == 200
 
         if valid:
-            print_if_interactive(f"{Fore.BLUE}Please scan the following QR code to log in.")
+            print_if_interactive(f"{Fore.LIGHTCYAN_EX}Please scan the following QR code to log in.")
 
             present_image_image(
                 response.content,
-                message_url = f"QR code URL: {Fore.BLUE}http://{args.host or '127.0.0.1'}:31415{Style.RESET_ALL}",
+                message_url = f"QR code URL: {Fore.LIGHTCYAN_EX}http://{args.host or '127.0.0.1'}:31415{Style.RESET_ALL}",
                 message_file_saved = "QR code image saved at: {}",
                 message_manually_open_file = "Please open {} and scan the QR code."
             )
             print_if_interactive()
-            print_if_interactive(f"{Fore.BLUE}Alternatively you can visit the following URL:")
-            print_if_interactive(f"{Fore.BLUE}  {self._login_url}")
+            print_if_interactive(f"{Fore.LIGHTCYAN_EX}Alternatively you can visit the following URL:")
+            print_if_interactive(f"{Fore.LIGHTCYAN_EX}  {self._login_url}")
             print_if_interactive()
             return True
         else:
@@ -853,10 +880,19 @@ class QrCodeXiaomiCloudConnector(XiaomiCloudConnector):
         _LOGGER.debug("Long polling URL: " + url)
 
         start_time = time.time()
+        response = None
         # Start long polling
         while True:
             try:
-                response = self._session.get(url, timeout=10)
+                response = request_with_hard_deadline(
+                    lambda: self._session.get(url, timeout=10), timeout=15
+                )
+            except concurrent.futures.TimeoutError:
+                _LOGGER.debug("Long polling call did not return within the hard deadline, retrying...")
+                if time.time() - start_time > self._timeout:
+                    _LOGGER.debug("Long polling timed out after {} seconds.".format(self._timeout))
+                    break
+                continue
             except requests.exceptions.Timeout:
                 _LOGGER.debug("Long polling timed out, retrying...")
                 if time.time() - start_time > self._timeout:
@@ -872,8 +908,9 @@ class QrCodeXiaomiCloudConnector(XiaomiCloudConnector):
             else:
                 _LOGGER.error("Long polling failed, retrying...")
 
-        if response.status_code != 200:
-            _LOGGER.error("Long polling failed with status code: " + str(response.status_code))
+        if response is None or response.status_code != 200:
+            status = response.status_code if response is not None else "no response (all attempts timed out)"
+            _LOGGER.error("Long polling failed with status code: " + str(status))
             return False
 
         _LOGGER.debug("Login successful!")
@@ -923,7 +960,7 @@ def print_tabbed(value: str, tab: int) -> None:
 
 def print_entry(key: str, value: str, tab: int) -> None:
     if value:
-        print_tabbed(f'{Fore.YELLOW}{key + ":": <10}{Style.RESET_ALL}{value}', tab)
+        print_tabbed(f'{Fore.LIGHTYELLOW_EX}{key + ":": <10}{Style.RESET_ALL}{value}', tab)
 
 
 def format_devices_report(output: list, generated_at: str, username: str | None = None) -> str:
@@ -933,6 +970,7 @@ def format_devices_report(output: list, generated_at: str, username: str | None 
     lines = [
         "Xiaomi Cloud Tokens Extractor - Report",
         f"Generated: {generated_at}",
+        f"Version: {VERSION}",
     ]
     if username:
         lines.append(f"Login: {username}")
@@ -985,22 +1023,18 @@ def write_devices_report(output: list, username: str | None = None) -> None:
         )
         with open(report_path, "w", encoding="utf-8") as f:
             f.write(report_text)
-        print_if_interactive(f"{Fore.GREEN}Full report saved to: {report_path}")
+        print_if_interactive(f"{Fore.LIGHTGREEN_EX}Full report saved to: {report_path}")
     except OSError as e:
         _LOGGER.error("Could not write report file %s: %s", report_path, e)
-        print_if_interactive(f"{Fore.RED}Could not save report file: {e}")
+        print_if_interactive(f"{Fore.LIGHTRED_EX}Could not save report file: {e}")
 
 
 def print_banner() -> None:
-    print_if_interactive(Fore.YELLOW + Style.BRIGHT + r"""
-                               Xiaomi Cloud
-___ ____ _  _ ____ _  _ ____    ____ _  _ ___ ____ ____ ____ ___ ____ ____ 
- |  |  | |_/  |___ |\ | [__     |___  \/   |  |__/ |__| |     |  |  | |__/ 
- |  |__| | \_ |___ | \| ___]    |___ _/\_  |  |  \ |  | |___  |  |__| |  \ 
-""" + Style.NORMAL +
-"""                                                        by Piotr Machowski 
-
-    """)
+    print_if_interactive(f"{Fore.LIGHTYELLOW_EX}{Style.BRIGHT}Xiaomi Cloud Tokens Extractor{Style.NORMAL} -- mod v{VERSION}")
+    print_if_interactive(f"{Fore.LIGHTCYAN_EX}Based on the original by Piotr Machowski{Style.RESET_ALL}")
+    print_if_interactive(f"{Fore.LIGHTCYAN_EX}https://github.com/PiotrMachowski/Xiaomi-cloud-tokens-extractor{Style.RESET_ALL}")
+    print_if_interactive(f"{Fore.LIGHTCYAN_EX}This mod: https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor{Style.RESET_ALL}")
+    print_if_interactive()
 
 
 _temp_image_files: list[str] = []
@@ -1137,11 +1171,11 @@ def main() -> None:
     logged = False
 
     if connector.load_cached_login():
-        print_if_interactive(f"{Fore.BLUE}Using cached login...")
+        print_if_interactive(f"{Fore.LIGHTCYAN_EX}Using cached login...")
         if connector.validate_cached_login():
             logged = True
         else:
-            print_if_interactive(f"{Fore.YELLOW}Cached login is expired or invalid.")
+            print_if_interactive(f"{Fore.LIGHTYELLOW_EX}Cached login is expired or invalid.")
             connector.clear_cached_login()
 
     if not logged:
@@ -1149,8 +1183,8 @@ def main() -> None:
             connector = PasswordXiaomiCloudConnector()
         else:
             print_if_interactive("Please select a way to log in:")
-            print_if_interactive(f" p{Fore.BLUE} - using password")
-            print_if_interactive(f" q{Fore.BLUE} - using QR code")
+            print_if_interactive(f" p{Fore.LIGHTCYAN_EX} - using password")
+            print_if_interactive(f" q{Fore.LIGHTCYAN_EX} - using QR code")
             log_in_method = ""
             while not log_in_method in ["P", "Q"]:
                 log_in_method = input("p/q: ").upper()
@@ -1160,12 +1194,25 @@ def main() -> None:
                 connector = QrCodeXiaomiCloudConnector()
             print_if_interactive()
 
-        logged = connector.login()
+        try:
+            logged = connector.login()
+        except requests.exceptions.RequestException as e:
+            if "SOCKS" in str(e):
+                print_if_interactive(f"{Fore.LIGHTRED_EX}Network error: {e}")
+                print_if_interactive(
+                    f"{Fore.LIGHTYELLOW_EX}A SOCKS proxy appears to be configured (e.g. via the "
+                    f"ALL_PROXY/HTTP_PROXY/HTTPS_PROXY environment variable), but the "
+                    f"'PySocks' package needed to use it isn't installed. Install it "
+                    f"with: pip install pysocks -- or unset the proxy environment "
+                    f"variable to connect directly.")
+            else:
+                print_if_interactive(f"{Fore.LIGHTRED_EX}Network error during login: {e}")
+            logged = False
         if logged:
             connector.save_cached_login()
 
     if logged:
-        print_if_interactive(f"{Fore.GREEN}Logged in.")
+        print_if_interactive(f"{Fore.LIGHTGREEN_EX}Logged in.")
         print_if_interactive()
         servers_to_check = get_servers_to_check()
         print_if_interactive()
@@ -1183,19 +1230,19 @@ def main() -> None:
                         all_homes.append({"home_id": h["home_id"], "home_owner": h["home_owner"]})
 
                 if len(all_homes) == 0:
-                    print_if_interactive(f'{Fore.RED}No homes found for server "{current_server}".')
+                    print_if_interactive(f'{Fore.LIGHTRED_EX}No homes found for server "{current_server}".')
 
                 for home in all_homes:
                     devices = connector.get_devices(current_server, home["home_id"], home["home_owner"])
                     home["devices"] = []
                     if devices is not None:
                         if devices["result"]["device_info"] is None or len(devices["result"]["device_info"]) == 0:
-                            print_if_interactive(f'{Fore.RED}No devices found for server "{current_server}" @ home "{home["home_id"]}".')
+                            print_if_interactive(f'{Fore.LIGHTRED_EX}No devices found for server "{current_server}" @ home "{home["home_id"]}".')
                             continue
                         print_if_interactive(f'Devices found for server "{current_server}" @ home "{home["home_id"]}":')
                         for device in devices["result"]["device_info"]:
                             device_data = {**device}
-                            print_tabbed(f"{Fore.BLUE}---------", 3)
+                            print_tabbed(f"{Fore.LIGHTCYAN_EX}---------", 3)
                             if "name" in device:
                                 print_entry("NAME", device["name"], 3)
                             if "did" in device:
@@ -1214,13 +1261,13 @@ def main() -> None:
                             if "model" in device:
                                 print_entry("MODEL", device["model"], 3)
                             home["devices"].append(device_data)
-                        print_tabbed(f"{Fore.BLUE}---------", 3)
+                        print_tabbed(f"{Fore.LIGHTCYAN_EX}---------", 3)
                         print_if_interactive()
                     else:
-                        print_if_interactive(f"{Fore.RED}Unable to get devices from server {current_server}.")
+                        print_if_interactive(f"{Fore.LIGHTRED_EX}Unable to get devices from server {current_server}.")
                 output.append({"server": current_server, "homes": all_homes})
             except requests.exceptions.RequestException as e:
-                print_if_interactive(f'{Fore.RED}Server "{current_server}" is unreachable, skipping: {e}')
+                print_if_interactive(f'{Fore.LIGHTRED_EX}Server "{current_server}" is unreachable, skipping: {e}')
                 _LOGGER.debug("Network error while processing server %s: %s", current_server, e)
                 continue
         write_devices_report(output, username=getattr(connector, "_username", None))
@@ -1228,7 +1275,7 @@ def main() -> None:
             with open(args.output, "w") as f:
                 f.write(json.dumps(output, indent=4))
     else:
-        print_if_interactive(f"{Fore.RED}Unable to log in.")
+        print_if_interactive(f"{Fore.LIGHTRED_EX}Unable to log in.")
 
     if not args.non_interactive:
         print_if_interactive()
@@ -1244,10 +1291,10 @@ def get_servers_to_check() -> list[str]:
         server = ""
     else:
         print_if_interactive(
-            f"Select server {Fore.BLUE}(one of: {servers_str}; Leave empty to check all available){Style.RESET_ALL}:")
+            f"Select server {Fore.LIGHTCYAN_EX}(one of: {servers_str}; Leave empty to check all available){Style.RESET_ALL}:")
         server = input()
         while server not in ["", *SERVERS]:
-            print_if_interactive(f"{Fore.RED}Invalid server provided. Valid values: {servers_str}")
+            print_if_interactive(f"{Fore.LIGHTRED_EX}Invalid server provided. Valid values: {servers_str}")
             print_if_interactive("Server:")
             server = input()
 
