@@ -1,5 +1,5 @@
-PyInstaller
 requests
+PySocks
 pycryptodome
 charset-normalizer
 Pillow
