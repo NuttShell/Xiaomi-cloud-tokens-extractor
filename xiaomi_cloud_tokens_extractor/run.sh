@@ -37,7 +37,7 @@ fi
 # (Rebuild/reinstall wipes its writable filesystem; a plain Restart does
 # not).
 exec ttyd -t cursorStyle=bar -t 'theme={"background": "black"}' -p 7681 -W bash -c '
-	echo "v.1.0.42"
+	echo "v.1.0.43"
     python3 token_extractor.py "$@"
     shopt -s nullglob
     reports=(xiaomi_tokens_*.txt)
@@ -73,8 +73,8 @@ exec ttyd -t cursorStyle=bar -t 'theme={"background": "black"}' -p 7681 -W bash 
                 echo
 				echo "Deleted all xiaomi_tokens."
                 ;;
-		read -r -p "Press Enter to continue: " _		
-        esac
+        esac	
     fi
+	read -r -p "Press Enter to continue: " _
 	clear
 ' _ "${ARGS[@]}"
