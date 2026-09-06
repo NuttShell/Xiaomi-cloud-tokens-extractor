@@ -1,20 +1,21 @@
 <# : batch cmd 2>nul
 @echo off
 setlocal EnableDelayedExpansion
-set "version=26.0827"
+set "version=26.0906"
 set "SCRIPTDIR=%~dp0"
 set "SCRIPTDIR=%SCRIPTDIR:~0,-1%"
-set "ARGS="!SCRIPTDIR!" %*"
+
+set ARGS= %*
 if defined ARGS set "ARGS=%ARGS:"=\"%"
 if defined ARGS set "ARGS=%ARGS:'=''%"
-powershell -c ^"Invoke-Expression ('^& {' + (get-content -raw '%~f0') + '} %ARGS%')"
+
+powershell -NoProfile -ExecutionPolicy Bypass -c ^"$ScriptDir='%SCRIPTDIR%'; $version='%version%'; Invoke-Expression ('^& {' + (get-content -raw '%~f0') + '} %ARGS%')"
 set "RC=%errorlevel%"
 if not "%RC%"=="0" pause
 exit /b %RC%
 #>
 
 param(
-    [string]$ScriptDir,
     [switch]$Overwrite,
     [string]$Method = ""
 )
@@ -171,7 +172,10 @@ $pythonDir = Join-Path $ScriptDir "python"
 $py        = Join-Path $pythonDir "python.exe"
 
 Write-Host ""
-Write-Host "PyInstaller Installer (embedded Python)" -ForegroundColor Cyan
+Write-Host "==============================================" -ForegroundColor White
+Write-Host " PyInstaller Installer (embedded Python)" -ForegroundColor White
+Write-Host " version $version" -ForegroundColor White
+Write-Host "==============================================" -ForegroundColor White
 Write-Host ""
 
 if (-not (Test-Path $py)) {
