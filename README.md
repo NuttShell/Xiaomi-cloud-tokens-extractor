@@ -11,6 +11,8 @@
 # Xiaomi Cloud Tokens Extractor
 
 _This is a fork of [PiotrMachowski/Xiaomi-cloud-tokens-extractor](https://github.com/PiotrMachowski/Xiaomi-cloud-tokens-extractor) with additional fixes and features — see [Changes vs. the original](#changes-vs-the-original-token_extractorpy) below. All credit for the original tool goes to Piotr Machowski._
+#### Changes vs. the original `token_extractor.py` - full list at [`CHANGES.md`](./CHANGES.md).
+
 
 This tool retrieves tokens for all devices connected to Xiaomi cloud and encryption keys for BLE devices.
 
@@ -22,14 +24,17 @@ After logging in you have to select a Xiaomi's server region (`cn` - China, `de`
 
 In return all of your devices connected to account will be listed, together with their name and IP address.
 
-# Changes vs. the original `token_extractor.py`
+## Home Assistant Add-on
 
-Full list at [`CHANGES.md`](./CHANGES.md).
-
-## Windows
-Download and run [token_extractor.exe](https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor/releases/latest/download/token_extractor.exe).
-
-or build token_extractor.exe from token_extractor.py yourself - see  [Windows build tools](make_win/readme.md)
+1. Settings > App > 3Dots > Repositories > Add
+   ```
+   https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor
+   ```
+   or
+   
+[![Open your Home Assistant instance and show the add add-on repository dialog with a specific repository URL pre-filled.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FNuttShell%2FXiaomi-cloud-tokens-extractor)
+   
+3. Settings > App > Install App > Xiaomi Cloud Tokens Extractor > Install > Start
 
 ## Linux & Home Assistant (in [SSH & Web Terminal](https://github.com/hassio-addons/addon-ssh))
 
@@ -48,6 +53,11 @@ bash <(curl -L https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor/raw/ma
 ```
 
 > To run this command in HA you have to disable `protected mode` in addon's settings and restart it
+
+## Windows
+Download and run [token_extractor.exe](https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor/releases/latest/download/token_extractor.exe).
+
+or build token_extractor.exe from token_extractor.py yourself - see  [Windows build tools](make_win/readme.md)
 
 ## Manual run in python
 
