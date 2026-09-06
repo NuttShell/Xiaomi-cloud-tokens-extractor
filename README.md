@@ -24,7 +24,7 @@ After logging in you have to select a Xiaomi's server region (`cn` - China, `de`
 
 In return all of your devices connected to account will be listed, together with their name and IP address.
 
-## Home Assistant Add-on
+## Home Assistant App
 
 1. Settings > App > 3Dots > Repositories > Add
    ```
