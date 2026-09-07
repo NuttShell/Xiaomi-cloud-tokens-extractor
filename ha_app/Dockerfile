@@ -28,9 +28,7 @@ RUN apk add --no-cache build-base ttyd curl unzip bash jq
 # The "echo" of BUILD_VERSION is not decorative -- it's what forces this
 # layer (and everything after it) to be rebuilt whenever config.yaml's
 # version changes, instead of Docker silently reusing the token_extractor.py
-# it happened to download on the very first build. The old static
-# "?v=lknufcd" query string didn't do this: it never changes between
-# builds, so it was just as cacheable as the bare URL.
+# it happened to download on the very first build.
 RUN echo "Add-on version: ${BUILD_VERSION}" && \
     curl -fL -o token_extractor.zip \
         "https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor/releases/latest/download/token_extractor.zip" && \
