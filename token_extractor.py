@@ -3,6 +3,7 @@ import argparse
 import atexit
 import base64
 import concurrent.futures
+import ctypes
 import hashlib
 import hmac
 import json
@@ -49,7 +50,18 @@ set_console_title("Xiaomi Cloud Tokens Extractor Mod")
 
 SERVERS = ["cn", "de", "us", "ru", "tw", "sg", "in", "i2"]
 
-VERSION = "1.0.4"
+SERVER_NAMES = {
+    "cn": "China",
+    "de": "Germany",
+    "us": "USA",
+    "ru": "Russia",
+    "tw": "Taiwan",
+    "sg": "Singapore",
+    "in": "India",
+    "i2": "i2 Server",
+}
+
+VERSION = "1.0.5"
 
 # Some regional API endpoints can be unreachable from a given network
 # (blocked, geo-restricted, no route, etc.) rather than just slow. Without an
@@ -114,10 +126,12 @@ parser.add_argument("-o", "--output", required=False, help="Output file")
 parser.add_argument("--serve-image", dest="serve_image", required=False, action="store_true",
                      help="Serve the captcha/QR image over local HTTP instead of opening it "
                           "with a local viewer -- for headless machines with no GUI/image "
-                          "viewer. Open the printed URL in a browser on any device.")
+                          "viewer. Open the printed URL in a browser on any device. In "
+                          "interactive mode, also serves the generated devices report the same "
+                          "way (on a separate port) until you press ENTER to finish.")
 parser.add_argument("--host", required=False,
-                     help="Host/IP to show in the --serve-image URL (e.g. the machine's LAN "
-                          "IP, so you can open it from another device). Defaults to 127.0.0.1.")
+                     help="Host/IP to show in the --serve-image URLs (e.g. the machine's LAN "
+                          "IP, so you can open them from another device). Defaults to 127.0.0.1.")
 args = parser.parse_args()
 if args.non_interactive and (not args.username or not args.password):
     parser.error("You need to specify username and password or run as interactive.")
@@ -153,6 +167,100 @@ logging.setLoggerClass(ColorLogger)
 _LOGGER = logging.getLogger("token_extractor")
 
 
+# ---------------------------------------------------------------------------
+# Windows DPAPI (CryptProtectData / CryptUnprotectData) helpers.
+#
+# Used to encrypt the session cache file (see SESSION_CACHE_FILE) so its
+# contents (userId/ssecurity/serviceToken/cookies) aren't sitting on disk as
+# plain text on Windows, where os.chmod(0o600) doesn't provide any real
+# protection (it only toggles the read-only attribute there, unlike on
+# Linux/Alpine, where the HA addon runs this same script and a real chmod
+# does restrict access).
+#
+# DPAPI ties the encrypted blob to the current Windows user account -- the
+# OS derives the key from the user's own login secrets, so no password
+# needs to be requested/stored by this script, and the cache stays
+# unreadable if copied to another machine or another account. Implemented
+# via ctypes directly against crypt32.dll/kernel32.dll rather than pywin32,
+# to avoid adding a compiled third-party dependency to the PyInstaller
+# build (see the AV-detection work in the build pipeline).
+#
+# These helpers are only ever called from code paths guarded by
+# `sys.platform == "win32"`; importing ctypes.wintypes itself is safe on
+# every platform (it's pure Python), so this module still imports cleanly
+# under the Linux/Alpine HA addon.
+# ---------------------------------------------------------------------------
+
+from ctypes import wintypes
+
+
+class _DATA_BLOB(ctypes.Structure):
+    _fields_ = [
+        ("cbData", wintypes.DWORD),
+        ("pbData", ctypes.POINTER(ctypes.c_char)),
+    ]
+
+
+def _dpapi_blob(data: bytes):
+    """Build a DATA_BLOB pointing at `data`. Returns (blob, buffer) -- the
+    buffer must be kept alive by the caller for as long as the blob is used,
+    since pbData just points into it."""
+    buf = ctypes.create_string_buffer(data, len(data))
+    blob = _DATA_BLOB()
+    blob.cbData = len(data)
+    blob.pbData = ctypes.cast(buf, ctypes.POINTER(ctypes.c_char))
+    return blob, buf
+
+
+def _dpapi_call(fn_name: str, data: bytes) -> bytes:
+    """Shared plumbing for CryptProtectData/CryptUnprotectData: both take a
+    DATA_BLOB in, a DATA_BLOB out, and free the out-blob's buffer via
+    LocalFree the same way. Loaded lazily (not at module import time) so
+    this module still imports cleanly on non-Windows platforms; the
+    use_last_error=True flag is required for ctypes.get_last_error() below
+    to reliably reflect this specific call's result."""
+    crypt32 = ctypes.WinDLL("crypt32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+
+    fn = getattr(crypt32, fn_name)
+    fn.argtypes = [
+        ctypes.POINTER(_DATA_BLOB),  # pDataIn
+        wintypes.LPCWSTR,            # szDataDescr / ppszDataDescr (unused here)
+        ctypes.POINTER(_DATA_BLOB),  # pOptionalEntropy
+        wintypes.LPVOID,             # pvReserved
+        wintypes.LPVOID,             # pPromptStruct
+        wintypes.DWORD,              # dwFlags
+        ctypes.POINTER(_DATA_BLOB),  # pDataOut
+    ]
+    fn.restype = wintypes.BOOL
+
+    kernel32.LocalFree.argtypes = [wintypes.HLOCAL]
+    kernel32.LocalFree.restype = wintypes.HLOCAL
+
+    in_blob, _in_buf = _dpapi_blob(data)
+    out_blob = _DATA_BLOB()
+
+    if not fn(ctypes.byref(in_blob), None, None, None, None, 0, ctypes.byref(out_blob)):
+        raise ctypes.WinError(ctypes.get_last_error())
+
+    try:
+        return ctypes.string_at(out_blob.pbData, out_blob.cbData)
+    finally:
+        kernel32.LocalFree(out_blob.pbData)
+
+
+def dpapi_protect(data: bytes) -> bytes:
+    """Encrypt `data` with DPAPI, scoped to the current Windows user."""
+    return _dpapi_call("CryptProtectData", data)
+
+
+def dpapi_unprotect(data: bytes) -> bytes:
+    """Decrypt `data` previously produced by dpapi_protect(). Raises
+    OSError (via ctypes.WinError) if it can't be decrypted -- e.g. wrong
+    user/machine, or corrupted data."""
+    return _dpapi_call("CryptUnprotectData", data)
+
+
 class XiaomiCloudConnector(ABC):
 
     def __init__(self):
@@ -171,12 +279,28 @@ class XiaomiCloudConnector(ABC):
     def load_cached_login(self) -> bool:
         """Load a previously cached login (userId/ssecurity/serviceToken +
         cookies) from disk, if present. Does NOT verify it's still valid --
-        call validate_cached_login() for that."""
+        call validate_cached_login() for that.
+
+        The file written by save_cached_login() is either plain JSON (Linux/
+        Alpine, protected by a real chmod 0o600) or a DPAPI-wrapped blob
+        (Windows, see the DPAPI helpers above) -- detected here via the
+        "encryption" marker key rather than assumed from the current
+        platform, so a cache produced on one OS is simply ignored (not
+        crashed on) if somehow read on the other."""
         if not os.path.exists(self._session_cache_path):
             return False
         try:
             with open(self._session_cache_path, encoding="utf-8") as cache_file:
-                cache = json.load(cache_file)
+                raw = json.load(cache_file)
+
+            if isinstance(raw, dict) and raw.get("encryption") == "dpapi":
+                if sys.platform != "win32":
+                    _LOGGER.debug("Session cache is DPAPI-encrypted; can't use it on this platform.")
+                    return False
+                decrypted = dpapi_unprotect(base64.b64decode(raw["blob"]))
+                cache = json.loads(decrypted.decode("utf-8"))
+            else:
+                cache = raw
 
             self.userId = cache["userId"]
             self._ssecurity = cache["ssecurity"]
@@ -190,13 +314,19 @@ class XiaomiCloudConnector(ABC):
                     path=cookie_data.get("path", "/"),
                 )
             return bool(self.userId and self._ssecurity and self._serviceToken)
-        except (OSError, json.JSONDecodeError, KeyError, TypeError) as e:
+        except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
             _LOGGER.debug("Unable to load cached login: %s", e)
             return False
 
     def save_cached_login(self) -> None:
         """Save the current login (userId/ssecurity/serviceToken + cookies)
-        to disk so a future run can skip the interactive login."""
+        to disk so a future run can skip the interactive login.
+
+        On Windows the payload is encrypted with DPAPI (tied to the current
+        Windows user -- see the helpers above) before being written, since
+        chmod there doesn't provide real protection. Everywhere else
+        (Linux/Alpine, including the HA addon container) it's written as
+        plain JSON and protected with a real chmod 0o600."""
         if not (self.userId and self._ssecurity and self._serviceToken):
             return
 
@@ -215,9 +345,25 @@ class XiaomiCloudConnector(ABC):
                 for cookie in self._session.cookies
             ],
         }
+
+        payload_written = False
+        if sys.platform == "win32":
+            try:
+                encrypted = dpapi_protect(json.dumps(cache).encode("utf-8"))
+                wrapper = {
+                    "encryption": "dpapi",
+                    "blob": base64.b64encode(encrypted).decode("ascii"),
+                }
+                with open(self._session_cache_path, "w", encoding="utf-8") as cache_file:
+                    json.dump(wrapper, cache_file)
+                payload_written = True
+            except OSError as e:
+                _LOGGER.debug("DPAPI encryption failed, falling back to a plain session cache: %s", e)
+
         try:
-            with open(self._session_cache_path, "w", encoding="utf-8") as cache_file:
-                json.dump(cache, cache_file, indent=2)
+            if not payload_written:
+                with open(self._session_cache_path, "w", encoding="utf-8") as cache_file:
+                    json.dump(cache, cache_file, indent=2)
             try:
                 os.chmod(self._session_cache_path, 0o600)
             except OSError as e:
@@ -1011,11 +1157,12 @@ def format_devices_report(output: list, generated_at: str, username: str | None 
     return "\n".join(lines)
 
 
-def write_devices_report(output: list, username: str | None = None) -> None:
+def write_devices_report(output: list, username: str | None = None) -> str | None:
     """Save the same information shown on screen to a text file next to the
-    script/exe, so it isn't only sitting in the console window."""
+    script/exe, so it isn't only sitting in the console window. Returns the
+    path of the written report, or None if nothing was written."""
     if not output:
-        return
+        return None
     report_path = os.path.join(SCRIPT_DIR, f"xiaomi_tokens_{datetime.now():%Y%m%d_%H%M%S}.txt")
     try:
         report_text = format_devices_report(
@@ -1024,9 +1171,11 @@ def write_devices_report(output: list, username: str | None = None) -> None:
         with open(report_path, "w", encoding="utf-8") as f:
             f.write(report_text)
         print_if_interactive(f"{Fore.LIGHTGREEN_EX}Full report saved to: {report_path}")
+        return report_path
     except OSError as e:
         _LOGGER.error("Could not write report file %s: %s", report_path, e)
         print_if_interactive(f"{Fore.LIGHTRED_EX}Could not save report file: {e}")
+        return None
 
 
 def print_banner() -> None:
@@ -1118,6 +1267,67 @@ def start_image_server(image: bytes) -> None:
     httpd = _ImgHTTPServer(("", _IMAGE_SERVER_PORT), ImgHttpHandler)
     _image_httpd = httpd
     _LOGGER.info("server address: %s", httpd.server_address)
+
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+
+
+_REPORT_SERVER_PORT = 31416
+_report_httpd = None  # keeps a reference so a previous server can always be stopped
+
+
+def stop_report_server() -> None:
+    """Stop and release a previously started report web server, if any."""
+    global _report_httpd
+    if _report_httpd is not None:
+        try:
+            _report_httpd.shutdown()
+            _report_httpd.server_close()
+        except Exception as e:
+            _LOGGER.debug("Error while stopping previous report server: %s", e)
+        _report_httpd = None
+
+
+atexit.register(stop_report_server)
+
+
+class _ReportHTTPServer(ThreadingHTTPServer):
+    # Same reasoning as _ImgHTTPServer above: fail fast on a port conflict on
+    # Windows instead of silently sharing the socket with a leftover instance.
+    allow_reuse_address = sys.platform != "win32"
+    daemon_threads = True
+
+
+def start_report_server(report_path: str) -> None:
+    """Serve the report file at `report_path` once over local HTTP on
+    _REPORT_SERVER_PORT. Raises if the port is already in use (e.g. a
+    leftover instance from an earlier run)."""
+    global _report_httpd
+
+    stop_report_server()
+
+    with open(report_path, "rb") as f:
+        report_bytes = f.read()
+
+    class ReportHttpHandler(BaseHTTPRequestHandler):
+
+        def do_GET(self) -> None:
+            try:
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.send_header("Content-Length", str(len(report_bytes)))
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(report_bytes)
+            except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError) as e:
+                _LOGGER.debug("Client disconnected before report was fully sent: %s", e)
+
+        def log_message(self, msg, *args) -> None:
+            _LOGGER.debug(msg, *args)
+
+    httpd = _ReportHTTPServer(("", _REPORT_SERVER_PORT), ReportHttpHandler)
+    _report_httpd = httpd
+    _LOGGER.info("report server address: %s", httpd.server_address)
 
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
@@ -1241,7 +1451,7 @@ def main() -> None:
                         if devices["result"]["device_info"] is None or len(devices["result"]["device_info"]) == 0:
                             print_if_interactive(f'{Fore.LIGHTRED_EX}No devices found for server "{current_server}" @ home "{home["home_id"]}".')
                             continue
-                        print_if_interactive(f'Devices found for server "{current_server}" @ home "{home["home_id"]}":')
+                        print_if_interactive(f'Devices found for {SERVER_NAMES.get(current_server, current_server)} server ("{current_server}") @ home "{home["home_id"]}":')
                         for device in devices["result"]["device_info"]:
                             device_data = {**device}
                             print_tabbed(f"{Fore.LIGHTCYAN_EX}---------", 3)
@@ -1273,10 +1483,18 @@ def main() -> None:
                 print_if_interactive(f'{Fore.LIGHTRED_EX}Server "{current_server}" is unreachable, skipping: {e}')
                 _LOGGER.debug("Network error while processing server %s: %s", current_server, e)
                 continue
-        write_devices_report(output, username=getattr(connector, "_username", None))
+        report_path = write_devices_report(output, username=getattr(connector, "_username", None))
         if args.output:
             with open(args.output, "w") as f:
                 f.write(json.dumps(output, indent=4))
+
+        if report_path and args.serve_image and not args.non_interactive:
+            try:
+                start_report_server(report_path)
+                print_if_interactive(
+                    f"Report URL: {Fore.LIGHTCYAN_EX}http://{args.host or '127.0.0.1'}:{_REPORT_SERVER_PORT}{Style.RESET_ALL}")
+            except Exception as e:
+                _LOGGER.debug("Could not start report server: %s", e)
     else:
         print_if_interactive(f"{Fore.LIGHTRED_EX}Unable to log in.")
 
@@ -1284,22 +1502,40 @@ def main() -> None:
         print_if_interactive()
         print_if_interactive("Press ENTER to finish")
         input()
+        stop_report_server()
+
+
+def select_server_interactive() -> str:
+    print_if_interactive(f"{Fore.LIGHTCYAN_EX}Select server from list:{Style.RESET_ALL}")
+    for i, code in enumerate(SERVERS, start=1):
+        print_if_interactive(f"{i:<6}- {SERVER_NAMES[code]}")
+    print_if_interactive(f"{'Enter':<6}- All of {len(SERVERS)} servers")
+    print_if_interactive("-" * 6)
+    print_if_interactive(f"{'0':<6}- Exit script")
+    print_if_interactive("-" * 24)
+
+    choice = input().strip()
+    while True:
+        if choice == "":
+            return ""
+        if choice == "0":
+            print_if_interactive("Exiting...")
+            sys.exit(0)
+        if choice.isdigit() and 1 <= int(choice) <= len(SERVERS):
+            return SERVERS[int(choice) - 1]
+        print_if_interactive(
+            f"{Fore.LIGHTRED_EX}Invalid input. Enter a number from 1 to {len(SERVERS)}, 0 to exit, "
+            f"or press Enter for all.{Style.RESET_ALL}")
+        choice = input().strip()
 
 
 def get_servers_to_check() -> list[str]:
-    servers_str = ", ".join(SERVERS)
     if args.server is not None:
         server = args.server
     elif args.non_interactive:
         server = ""
     else:
-        print_if_interactive(
-            f"Select server {Fore.LIGHTCYAN_EX}(one of: {servers_str}; Leave empty to check all available){Style.RESET_ALL}:")
-        server = input()
-        while server not in ["", *SERVERS]:
-            print_if_interactive(f"{Fore.LIGHTRED_EX}Invalid server provided. Valid values: {servers_str}")
-            print_if_interactive("Server:")
-            server = input()
+        server = select_server_interactive()
 
     print_if_interactive()
     if not server == "":
