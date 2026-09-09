@@ -45,11 +45,10 @@ if [ -n "$TMP_KEEP" ]; then
     rmdir "$TMP_KEEP" 2>/dev/null || true
 fi
 
-clear
-
 python3 -m venv .venv
 source .venv/bin/activate
 pip3 install --quiet -r requirements.txt
+clear
 python3 token_extractor.py --serve-image --host "$host_to_pass"
 deactivate
 
