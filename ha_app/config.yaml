@@ -1,5 +1,5 @@
 name: "Xiaomi Cloud Tokens Extractor"
-version: "1.0.4"
+version: "1.0.5"
 slug: ha_app
 description: "Interactive terminal for extracting Xiaomi Cloud device tokens and BLE keys -- runs the existing tool right inside Home Assistant, no SSH needed."
 url: "https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor"
@@ -19,6 +19,8 @@ panel_icon: mdi:key-variant
 panel_title: Xiaomi Tokens
 ports:
   31415/tcp: 31415
+  31416/tcp: 31416
 ports_description:
   31415/tcp: "Captcha/QR code image -- while using the terminal, open http://<your-home-assistant-address>:31415 in a separate browser tab to see it."
+  31416/tcp: "Devices report -- while using the terminal, open http://<your-home-assistant-address>:31416 in a separate browser tab to see it."
 map: []
