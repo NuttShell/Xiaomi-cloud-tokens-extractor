@@ -76,7 +76,7 @@ jobs:
           cp token_extractor.spec win_build/
           cp icon.ico win_build/
           cp requirements.txt win_build/
-          zip win_build.zip -r win_build
+          (cd win_build && zip -r ../win_build.zip .)
           rm -rf win_build
       - name: Archive built file
         uses: actions/upload-artifact@v4
@@ -149,5 +149,119 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: dist/token_extractor.exe
           asset_name: token_extractor.exe
+          tag: ${{ github.ref }}
+          overwrite: true
+  release_linux:
+    name: Release Linux binary, .deb and .rpm
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download repo
+        uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        name: Setup Python
+        with:
+          python-version: '3.14.x'
+      - name: Install dependencies
+        run: |
+          pip3 install -r requirements.txt
+          pip3 install pyinstaller
+      - name: Run pyinstaller
+        run: pyinstaller token_extractor.spec
+      - name: Rename binary
+        run: mv dist/token_extractor dist/token_extractor_linux_amd64
+      - name: Smoke-test the built binary
+        timeout-minutes: 1
+        run: dist/token_extractor_linux_amd64 --help
+      - name: Read version from the script
+        id: ver
+        run: |
+          VERSION=$(python3 -c "import re; print(re.search(r'VERSION = \"([^\"]+)\"', open('token_extractor.py').read()).group(1))")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Create .deb package
+        run: |
+          set -euo pipefail
+          PKG_ROOT="pkg"
+          rm -rf "$PKG_ROOT"
+          mkdir -p "$PKG_ROOT/DEBIAN" "$PKG_ROOT/usr/bin"
+          install -m 755 dist/token_extractor_linux_amd64 "$PKG_ROOT/usr/bin/token-extractor"
+          cat > "$PKG_ROOT/DEBIAN/control" <<EOF
+          Package: xiaomi-cloud-tokens-extractor
+          Version: ${{ steps.ver.outputs.version }}
+          Section: utils
+          Priority: optional
+          Architecture: amd64
+          Maintainer: NuttShell
+          Homepage: https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor
+          Description: Xiaomi Cloud Tokens Extractor
+           Extracts Xiaomi Cloud device tokens and BLE keys.
+          EOF
+          dpkg-deb --build --root-owner-group "$PKG_ROOT" "dist/token_extractor_linux_amd64.deb"
+      - name: Smoke-test the .deb package
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/deb_test
+          dpkg-deb -x dist/token_extractor_linux_amd64.deb /tmp/deb_test
+          /tmp/deb_test/usr/bin/token-extractor --help
+      - name: Create .rpm package with fpm
+        run: |
+          set -euo pipefail
+          sudo gem install --no-document fpm
+          fpm -s dir -t rpm \
+              -n xiaomi-cloud-tokens-extractor \
+              -v "${{ steps.ver.outputs.version }}" \
+              --architecture x86_64 \
+              --url "https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor" \
+              --description "Xiaomi Cloud Tokens Extractor -- extracts Xiaomi Cloud device tokens and BLE keys." \
+              dist/token_extractor_linux_amd64=/usr/bin/token-extractor
+          mv xiaomi-cloud-tokens-extractor-*.rpm dist/token_extractor_linux_amd64.rpm
+      - name: Smoke-test the .rpm package
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq rpm cpio
+          rpm -qp --queryformat 'Name: %{NAME}  Version: %{VERSION}  Arch: %{ARCH}\n' dist/token_extractor_linux_amd64.rpm
+          mkdir -p /tmp/rpm_test && cd /tmp/rpm_test
+          rpm2cpio "$OLDPWD/dist/token_extractor_linux_amd64.rpm" | cpio -idm
+          ./usr/bin/token-extractor --help
+      - name: Archive binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: token_extractor_linux_amd64
+          path: dist/token_extractor_linux_amd64
+      - name: Archive .deb package
+        uses: actions/upload-artifact@v4
+        with:
+          name: token_extractor_linux_amd64.deb
+          path: dist/token_extractor_linux_amd64.deb
+      - name: Archive .rpm package
+        uses: actions/upload-artifact@v4
+        with:
+          name: token_extractor_linux_amd64.rpm
+          path: dist/token_extractor_linux_amd64.rpm
+      - name: Upload binary to release
+        if: github.event_name == 'release'
+        uses: svenstaro/upload-release-action@v1-release
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: dist/token_extractor_linux_amd64
+          asset_name: token_extractor_linux_amd64
+          tag: ${{ github.ref }}
+          overwrite: true
+      - name: Upload .deb to release
+        if: github.event_name == 'release'
+        uses: svenstaro/upload-release-action@v1-release
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: dist/token_extractor_linux_amd64.deb
+          asset_name: token_extractor_linux_amd64.deb
+          tag: ${{ github.ref }}
+          overwrite: true
+      - name: Upload .rpm to release
+        if: github.event_name == 'release'
+        uses: svenstaro/upload-release-action@v1-release
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: dist/token_extractor_linux_amd64.rpm
+          asset_name: token_extractor_linux_amd64.rpm
           tag: ${{ github.ref }}
           overwrite: true
