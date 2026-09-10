@@ -5,19 +5,25 @@ set "version=26.0906"
 set "SCRIPTDIR=%~dp0"
 set "SCRIPTDIR=%SCRIPTDIR:~0,-1%"
 
+set "NOWAIT="
+for %%A in (%*) do (
+    if /I "%%~A"=="-nowait" set "NOWAIT=1"
+)
+
 set ARGS= %*
 if defined ARGS set "ARGS=%ARGS:"=\"%"
 if defined ARGS set "ARGS=%ARGS:'=''%"
 
 powershell -NoProfile -ExecutionPolicy Bypass -c ^"$ScriptDir='%SCRIPTDIR%'; $version='%version%'; Invoke-Expression ('^& {' + (get-content -raw '%~f0') + '} %ARGS%')"
 set "RC=%errorlevel%"
-if not "%RC%"=="0" pause
+if not "%RC%"=="0" if not defined NOWAIT pause
 exit /b %RC%
 #>
 
 param(
     [switch]$Overwrite,
-    [string]$Method = ""
+    [string]$Method = "",
+    [switch]$NoWait
 )
 
 if (-not $ScriptDir) { $ScriptDir = $PSScriptRoot }
@@ -279,4 +285,4 @@ Write-Host "PyInstaller : $finalVer"  -ForegroundColor White
 Write-Host "Method      : $selMethod" -ForegroundColor White
 Write-Host "====================================================" -ForegroundColor Green
 Write-Host ""
-Read-Host -Prompt "Press any key to continue"
+if (-not $NoWait) { Read-Host -Prompt "Press any key to continue" }

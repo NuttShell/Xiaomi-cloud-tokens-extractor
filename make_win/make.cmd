@@ -12,6 +12,8 @@ set "PYTHON_PATH=%SCRIPTDIR%\python"
 set "PYTHON_SCRIPTS=%PYTHON_PATH%\Scripts"
 set "PYTHON_EXE=%PYTHON_PATH%\python.exe"
 set "PROGNAME_EXE=%SCRIPTDIR%\%progname%.exe"
+set "install_python_cmd=%SCRIPTDIR%\get_python.cmd"
+set "install_pyinstaller_cmd=%SCRIPTDIR%\get_pyinstaller.cmd"
 set "ICON_ICO=%PYTHON_PAT%\Lib\site-packages\PyInstaller\bootloader\images\icon-console.ico"
 set "pyinstaller_src=%SCRIPTDIR%\pyinstaller_src"
 
@@ -35,20 +37,44 @@ set "RESET=%ESC%[0m"
 exit /b
 
 :check_python
-if exist "%PYTHON_EXE%" (
+if not exist "%install_python_cmd%" (
 	echo.
-	echo.%LGREEN%[+] Embedded Python found:%RESET%
-	echo.    %PYTHON_EXE%
-	exit /b 0
-) else (
-	echo.
-	echo.%LRED%[-] Embedded Python NOT found:%RESET%"%PYTHON_EXE%"
-	echo.%LRED%program aborted%RESET%
+	echo.%LRED%[-] Python install script NOT found. Program aborted.%RESET%
 	echo.
 	pause
 	exit /b 1
 )
-exit /b
+if not exist "%install_pyinstaller_cmd%" (
+	echo.
+	echo.%LRED%[-] PyInstaller install script NOT found. Program aborted.%RESET%
+	echo.
+	pause
+	exit /b 1
+)
+
+if not exist "%PYTHON_EXE%" (
+echo.
+echo.%LRED%[-] Embedded Python NOT found:%RESET%"%PYTHON_EXE%"
+echo.
+echo.%LCYAN%[*] Install Python%RESET%
+call %install_python_cmd% -nowait &&call %install_pyinstaller_cmd% -nowait
+	if !errorlevel! neq 0 (
+		echo.
+		echo.%LRED%[-] Install Python failed. Program aborted.%RESET%
+		echo.
+		pause
+		exit /b 1
+	) else (
+		echo.
+		echo.%LGREEN%[+] Succesfully install Python%RESET%
+		echo.
+		exit /b 0
+	)
+)
+echo.
+echo.%LGREEN%[+] Embedded Python found:%RESET%
+echo.    %PYTHON_EXE%
+exit /b 0 
 
 :main_build
 echo.
