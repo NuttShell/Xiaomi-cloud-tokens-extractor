@@ -165,7 +165,6 @@ jobs:
         run: |
           set -euo pipefail
           docker run --rm \
-            --user "$(id -u):$(id -g)" \
             -v "$PWD":/work -w /work \
             quay.io/pypa/manylinux_2_28_x86_64 \
             bash -c '
@@ -173,6 +172,7 @@ jobs:
               "$PYBIN/pip" install -r requirements.txt pyinstaller
               "$PYBIN/pyinstaller" token_extractor.spec
             '
+          sudo chown -R "$(id -u):$(id -g)" dist build
       - name: Check the minimum glibc version required by the binary
         run: |
           sudo apt-get install -y -qq binutils
