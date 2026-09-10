@@ -61,7 +61,7 @@ SERVER_NAMES = {
     "i2": "i2 Server",
 }
 
-VERSION = "1.0.5"
+VERSION = "1.0.6"
 
 # Some regional API endpoints can be unreachable from a given network
 # (blocked, geo-restricted, no route, etc.) rather than just slow. Without an
@@ -123,18 +123,19 @@ parser.add_argument("-p", "--password", required=False, help="Password")
 parser.add_argument("-s", "--server", required=False, help="Server", choices=[*SERVERS, ""])
 parser.add_argument("-l", "--log_level", required=False, help="Log level", default="CRITICAL", choices=list(NAME_TO_LEVEL.keys()))
 parser.add_argument("-o", "--output", required=False, help="Output file")
-parser.add_argument("--serve-image", dest="serve_image", required=False, action="store_true",
+parser.add_argument("-si", "--serve-image", dest="serve_image", required=False, action="store_true",
                      help="Serve the captcha/QR image over local HTTP instead of opening it "
                           "with a local viewer -- for headless machines with no GUI/image "
-                          "viewer. Open the printed URL in a browser on any device. In "
-                          "interactive mode, also serves the generated devices report the same "
-                          "way (on a separate port) until you press ENTER to finish.")
+                          "viewer. Open the printed URL in a browser on any device. Also "
+                          "serves the generated devices report the same way (on a separate "
+                          "port) until you press ENTER to finish. Interactive mode only -- "
+                          "captcha/QR login and the report pause aren't available with "
+                          "--non_interactive, so this flag has no effect there.")
 parser.add_argument("--host", required=False,
                      help="Host/IP to show in the --serve-image URLs (e.g. the machine's LAN "
-                          "IP, so you can open them from another device). Defaults to 127.0.0.1.")
+                          "IP, so you can open them from another device). Defaults to "
+                          "127.0.0.1. Interactive mode only, same as --serve-image.")
 args = parser.parse_args()
-if args.non_interactive and (not args.username or not args.password):
-    parser.error("You need to specify username and password or run as interactive.")
 
 init(autoreset=True)
 
@@ -1141,6 +1142,9 @@ def format_devices_report(output: list, generated_at: str, username: str | None 
                     lines.append(f'    NAME:    {device["name"]}')
                 if device.get("model"):
                     lines.append(f'    MODEL:   {device["model"]}')
+                fw_version = (device.get("extra") or {}).get("fw_version")
+                if fw_version:
+                    lines.append(f'    FW:      {fw_version}')
                 if device.get("did"):
                     lines.append(f'    ID:      {device["did"]}')
                 ble = device.get("BLE_DATA") or {}
@@ -1180,11 +1184,12 @@ def write_devices_report(output: list, username: str | None = None) -> str | Non
 
 def print_banner() -> None:
     print_if_interactive(f"{Fore.LIGHTYELLOW_EX}{Style.BRIGHT}Xiaomi{Style.NORMAL}")
-    print_if_interactive(f"{Fore.LIGHTYELLOW_EX}{Style.BRIGHT}Cloud Tokens Extractor{Style.NORMAL} -- mod v{VERSION}")
+    print_if_interactive(f"{Fore.LIGHTYELLOW_EX}{Style.BRIGHT}Cloud Tokens Extractor{Style.NORMAL}")
+    print_if_interactive(f"{Fore.LIGHTYELLOW_EX}{Style.BRIGHT}mod v.{VERSION}{Style.NORMAL}")
+    print_if_interactive(f"{Fore.LIGHTWHITE_EX}Link on github - https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor{Style.RESET_ALL}")
     print_if_interactive()
     print_if_interactive(f"{Fore.LIGHTWHITE_EX}Based on the original by Piotr Machowski{Style.RESET_ALL}")
     print_if_interactive(f"{Fore.LIGHTWHITE_EX}https://github.com/PiotrMachowski/Xiaomi-cloud-tokens-extractor{Style.RESET_ALL}")
-    print_if_interactive(f"{Fore.LIGHTWHITE_EX}This mod: https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor{Style.RESET_ALL}")
     print_if_interactive()
 
 
@@ -1391,6 +1396,10 @@ def main() -> None:
             connector.clear_cached_login()
 
     if not logged:
+        if args.non_interactive and (not args.username or not args.password):
+            parser.error(
+                "You need to specify username and password (or have a valid cached "
+                "login in .xiaomi-cloud-session.json) to run non-interactively.")
         if args.non_interactive:
             connector = PasswordXiaomiCloudConnector()
         else:
