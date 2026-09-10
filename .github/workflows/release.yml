@@ -161,16 +161,15 @@ jobs:
         name: Setup Python
         with:
           python-version: '3.14.x'
-      - name: Build binary inside manylinux (old glibc) container for broad compatibility
+      - name: Build binary inside old-glibc container for broad compatibility
         run: |
           set -euo pipefail
           docker run --rm \
             -v "$PWD":/work -w /work \
-            quay.io/pypa/manylinux_2_28_x86_64 \
+            python:3.12-bullseye \
             bash -c '
-              PYBIN=/opt/python/cp312-cp312/bin
-              "$PYBIN/pip" install -r requirements.txt pyinstaller
-              "$PYBIN/pyinstaller" token_extractor.spec
+              pip install -r requirements.txt pyinstaller
+              pyinstaller token_extractor.spec
             '
           sudo chown -R "$(id -u):$(id -g)" dist build
       - name: Check the minimum glibc version required by the binary
