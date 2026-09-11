@@ -1468,6 +1468,9 @@ def main() -> None:
                                 print_entry("NAME", device["name"], 3)
                             if "model" in device:
                                 print_entry("MODEL", device["model"], 3)
+                            fw_version = (device.get("extra") or {}).get("fw_version")
+                            if fw_version:
+                                print_entry("FW", fw_version, 3)
                             if "did" in device:
                                 print_entry("ID", device["did"], 3)
                                 if "blt" in device["did"]:
