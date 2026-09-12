@@ -24,6 +24,7 @@ set -euo pipefail
 #           CONSTANTS
 #############################################
 readonly REPO_URL="https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor"
+readonly INSTALLER_RAW_URL="https://raw.githubusercontent.com/NuttShell/Xiaomi-cloud-tokens-extractor/master/installTokenExtractorLinux.sh"
 readonly INSTALL_DIR="/opt/xiaomi-token-extractor"
 readonly SYMLINK_PATH="/usr/local/bin/token-extractor"
 # Matches the glibc baseline of the python:3.12-bullseye image the Linux
@@ -306,6 +307,38 @@ checkInstalledVersion() {
 #           INSTALL / UPDATE / CHECK / REMOVE
 #############################################
 
+# Copies this installer script into $INSTALL_DIR, so it's on the system
+# afterwards for future --update/--check/--remove runs without having to
+# re-download it from GitHub. Two paths:
+#   1. Copy the real file on disk, if there is one (the common case: a
+#      downloaded/local installTokenExtractorLinux.sh was run directly).
+#   2. Otherwise (e.g. `curl ... | sudo bash` or `sudo bash <(curl ...)`,
+#      where the script only ever exists as a pipe -- BASH_SOURCE[0] then
+#      points at something like /dev/fd/63, not a regular file, and it can
+#      only be read once anyway) fetch a fresh copy straight from GitHub.
+# Best-effort either way: a failure here shouldn't block the actual binary
+# install, so nothing here is fatal.
+copySelfToInstallDir() {
+  local self_path=""
+  if [[ -n "${BASH_SOURCE[0]:-}" && -f "${BASH_SOURCE[0]}" ]]; then
+    self_path=$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")
+  fi
+
+  if [[ -n "$self_path" && -f "$self_path" ]]; then
+    install -m 755 "$self_path" "${INSTALL_DIR}/installTokenExtractorLinux.sh"
+    return 0
+  fi
+
+  if command -v curl >/dev/null 2>&1; then
+    if curl -fsSL --connect-timeout 10 --max-time 30 \
+        -o "${INSTALL_DIR}/installTokenExtractorLinux.sh" "$INSTALLER_RAW_URL" 2>/dev/null; then
+      chmod 755 "${INSTALL_DIR}/installTokenExtractorLinux.sh"
+    else
+      rm -f "${INSTALL_DIR}/installTokenExtractorLinux.sh"
+    fi
+  fi
+}
+
 doInstall() {
   checkCurl
 
@@ -328,6 +361,7 @@ doInstall() {
   fi
 
   mkdir -p "$INSTALL_DIR"
+  copySelfToInstallDir
 
   local binName binPath
   binName=$(getBinaryName)
@@ -348,6 +382,8 @@ doInstall() {
     echo " $(colorize green "token-extractor $target_version is installed at $INSTALL_DIR")"
     echo " Run it with: token-extractor --help"
     echo " Session cache and reports are saved per-user under ~/.xiaomi-token-extractor/"
+    echo " This install script is also kept at $INSTALL_DIR/installTokenExtractorLinux.sh"
+    echo " for future updates/removal."
     echo ""
   else
     echo "token-extractor $target_version installed to $INSTALL_DIR"
@@ -383,7 +419,7 @@ doRemove() {
   if [[ $SILENT_MODE -eq 0 ]]; then
     echo ""
     echo " Install dir: $INSTALL_DIR"
-    echo " This removes the binary and the $SYMLINK_PATH symlink -- nothing else."
+    echo " This removes the binary, the installer copy, and the $SYMLINK_PATH symlink."
     echo " Session cache/reports in each user's ~/.xiaomi-token-extractor/ are left"
     echo " alone (delete that folder yourself per-user if you also want those gone)."
     echo ""
