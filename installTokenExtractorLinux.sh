@@ -110,7 +110,7 @@ promptChoice() {
   for i in "${!options[@]}"; do
     printf '%-3s- %s\n' "$((i + 1))" "${options[$i]}" >&2
   done
-  printf '%-3s- Exit\n' "0" >&2
+  printf '%-3s-  Exit\n' "0" >&2
   echo "" >&2
 
   local choice
