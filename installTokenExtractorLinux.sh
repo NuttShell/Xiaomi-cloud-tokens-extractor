@@ -557,11 +557,11 @@ main() {
   echo " $(colorize green "=============================================================")"
 
   local choice
-  choice=$(promptChoice "What would you like to do?" \
-      "Install / update to latest" \
-      "Install a specific version" \
-      "Check for updates" \
-      "Uninstall")
+  choice=$(promptChoice "  What would you like to do?" \
+      "  Install / update to latest" \
+      "  Install a specific version" \
+      "  Check for updates" \
+      "  Uninstall")
 
   case "$choice" in
     1)
@@ -578,7 +578,7 @@ main() {
       ;;
     3) doCheck ;;
     4) doRemove ;;
-    0|*) echo " Bye." ;;
+    0|*) echo "  Bye." ;;
   esac
 }
 
