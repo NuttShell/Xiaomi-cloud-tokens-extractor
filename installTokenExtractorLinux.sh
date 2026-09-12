@@ -547,7 +547,7 @@ main() {
 
   # No command given -- interactive menu.
   if [[ $SILENT_MODE -eq 1 ]]; then
-    echo " No command given. Use --install/--update/--check/--remove, or --help." >&2
+    echo "  No command given. Use --install/--update/--check/--remove, or --help." >&2
     exit 1
   fi
 
@@ -570,15 +570,15 @@ main() {
       ;;
     2)
       while true; do
-        specificVersion=$(promptInput "Version to install (e.g. 1.0.5):")
+        specificVersion=$(promptInput "  Version to install (e.g. 1.0.5):")
         [[ "$specificVersion" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] && break
-        echo " That doesn't look like a version number, try again (or Ctrl+C to give up)."
+        echo "  That doesn't look like a version number, try again (or Ctrl+C to give up)."
       done
       doInstall
       ;;
     3) doCheck ;;
     4) doRemove ;;
-    0|*) echo "  Bye." ;;
+    0|*) echo " $(colorize green "  Bye.")" ;;
   esac
 }
 
