@@ -547,7 +547,7 @@ main() {
 
   # No command given -- interactive menu.
   if [[ $SILENT_MODE -eq 1 ]]; then
-    echo "  No command given. Use --install/--update/--check/--remove, or --help." >&2
+    echo " $(colorize yellow "  No command given. Use --install/--update/--check/--remove, or --help.")" >&2
     exit 1
   fi
 
