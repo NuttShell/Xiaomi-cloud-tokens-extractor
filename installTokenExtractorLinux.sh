@@ -353,7 +353,7 @@ doInstall() {
     if checkInstalledVersion "$target_version"; then
       need_download=0
     elif [[ $SILENT_MODE -eq 0 ]]; then
-      if ! promptYesNo "Install/update to $target_version?" "y"; then
+      if ! promptYesNo "  Install/update to $target_version?" "y"; then
         echo " Cancelled."
         return 0
       fi
@@ -386,13 +386,13 @@ doInstall() {
     echo " for future updates/removal."
     echo ""
   else
-    echo "token-extractor $target_version installed to $INSTALL_DIR"
+    echo " $(colorize green "  token-extractor $target_version installed to $INSTALL_DIR")"
   fi
 }
 
 doCheck() {
   if ! checkInstalled; then
-    echo " Not installed. Run with --install to install it."
+   echo " $(colorize yellow " Not installed. Run with --install to install it.")"
     exit 1
   fi
 
@@ -558,10 +558,10 @@ main() {
 
   local choice
   choice=$(promptChoice "  What would you like to do?" \
-      "  Install / update to latest" \
-      "  Install a specific version" \
-      "  Check for updates" \
-      "  Uninstall")
+      " Install / update to latest" \
+      " Install a specific version" \
+      " Check for updates" \
+      " Uninstall")
 
   case "$choice" in
     1)
@@ -578,7 +578,7 @@ main() {
       ;;
     3) doCheck ;;
     4) doRemove ;;
-    0|*) echo " $(colorize green "  Bye.")" ;;
+    0|*) echo " $(colorize green " Bye.")" ;;
   esac
 }
 
