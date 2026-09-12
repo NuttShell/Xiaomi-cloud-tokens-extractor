@@ -424,14 +424,14 @@ doRemove() {
     echo " alone (delete that folder yourself per-user if you also want those gone)."
     echo ""
     if ! promptYesNo "Are you sure you want to remove token-extractor?" "n"; then
-      echo " Cancelled."
+      echo " $(colorize yellow "Cancelled.")"
       return 0
     fi
   fi
 
   rm -rf "$INSTALL_DIR"
   rm -f "$SYMLINK_PATH"
-  echo " token-extractor removed."
+ echo " $(colorize green " token-extractor removed.")"
 }
 
 #############################################
@@ -552,9 +552,9 @@ main() {
   fi
 
   echo ""
-  echo "============================================================="
-  echo " token-extractor install/update/remove script"
-  echo "============================================================="
+  echo " $(colorize green "=============================================================")"
+  echo " $(colorize green " Xiaomi Cloud Token extractor install/update/remove script")"
+  echo " $(colorize green "=============================================================")"
 
   local choice
   choice=$(promptChoice "What would you like to do?" \
