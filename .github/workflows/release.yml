@@ -43,7 +43,7 @@ jobs:
         run: |
           mkdir -p token_extractor_docker
           cp token_extractor.py token_extractor_docker/
-          cp packaging/requirements.txt token_extractor_docker/
+          cp requirements.txt token_extractor_docker/
           cp docker/.dockerignore token_extractor_docker/
           cp docker/Dockerfile token_extractor_docker/
           zip token_extractor_docker.zip -r token_extractor_docker
@@ -75,7 +75,7 @@ jobs:
           cp token_extractor.py win_build/
           cp packaging/token_extractor.spec win_build/
           cp packaging/icon.ico win_build/
-          cp packaging/requirements.txt win_build/
+          cp requirements.txt win_build/
           (cd win_build && zip -r ../win_build.zip .)
           rm -rf win_build
       - name: Archive built file
@@ -108,10 +108,13 @@ jobs:
         run: |
           pip download --no-binary pyinstaller --no-deps --no-cache-dir -d pyinstaller_src pyinstaller
           pip install --verbose (Get-ChildItem pyinstaller_src\*.tar.gz).FullName
+          
       - name: Install dependencies
-        run: pip3 install -r packaging/requirements.txt
+        run: pip3 install -r requirements.txt
+        
       - name: Run pyinstaller
         run: pyinstaller packaging/token_extractor.spec
+        
       - name: Strip Rich PE header
         shell: bash
         run: |
@@ -168,7 +171,7 @@ jobs:
             -v "$PWD":/work -w /work \
             python:3.12-bullseye \
             bash -c '
-              pip install -r packaging/requirements.txt
+              pip install -r requirements.txt
               pip install "pyinstaller==6.13.0"
               pyinstaller packaging/token_extractor.spec
             '
@@ -289,7 +292,7 @@ jobs:
         run: |
           VERSION="${{ github.event.release.tag_name }}"
           sed -i "s/^version: .*/version: \"$VERSION\"/" HA_app/config.yaml
-          grep "^version:" HA_app/config.yaml
+          grep "^version:" ha_app/config.yaml
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
