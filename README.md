@@ -14,6 +14,7 @@ _This is a fork of [PiotrMachowski/Xiaomi-cloud-tokens-extractor](https://github
 
 _All credit for the original tool goes to Piotr Machowski._
 
+
 This tool retrieves tokens for all devices connected to Xiaomi cloud and encryption keys for BLE devices.
 
 It supports two ways of authentication:
@@ -30,7 +31,7 @@ The script can also run fully non-interactively, with credentials, server, and o
 
 ## Home Assistant App
 
-1. Settings > App > Repositories > Add
+Settings > App > Repositories > Add
    ```
    https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor
    ```
@@ -38,7 +39,7 @@ The script can also run fully non-interactively, with credentials, server, and o
    
 [![Open your Home Assistant instance and show the add add-on repository dialog with a specific repository URL pre-filled.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FNuttShell%2FXiaomi-cloud-tokens-extractor)
    
-3. Settings > App > Install App > Xiaomi Cloud Tokens Extractor > Install > Start
+Settings > App > Install App > Xiaomi Cloud Tokens Extractor > Install > Start
 
 ## Linux & Home Assistant (in [SSH & Web Terminal](https://github.com/hassio-addons/addon-ssh))
 
@@ -46,8 +47,6 @@ Execute following command:
 ```bash
 bash <(curl -L https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor/raw/master/run.sh)
 ```
-
-> If installation fails try Docker version
 
 ## Windows
 Download and run [token_extractor.exe](https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor/releases/latest/download/token_extractor.exe).
@@ -126,8 +125,11 @@ cd token_extractor
 
 Install dependencies and run script:
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip3 install -r requirements.txt
 python3 token_extractor.py
+deactivate
 ```
 
 > On a headless machine add `--host <LAN IP>` as well if you want to open it from another device on the network.
