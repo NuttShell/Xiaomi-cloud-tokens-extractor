@@ -33,7 +33,7 @@ from PIL import Image
 if sys.platform != "win32":
     import readline
 
-VERSION = "1.0.7"
+VERSION = "1.0.8"
 TITLE = "Xiaomi Cloud Tokens Extractor mod v." + str(VERSION)
 
 def set_console_title(title: str) -> None:
@@ -143,19 +143,38 @@ parser.add_argument("-p", "--password", required=False, help="Password")
 parser.add_argument("-s", "--server", required=False, help="Server", choices=[*SERVERS, ""])
 parser.add_argument("-l", "--log_level", required=False, help="Log level", default="CRITICAL", choices=list(NAME_TO_LEVEL.keys()))
 parser.add_argument("-o", "--output", required=False, help="Output file")
-parser.add_argument("-si", "--serve-image", dest="serve_image", required=False, action="store_true",
-                     help="Serve the captcha/QR image over local HTTP instead of opening it "
-                          "with a local viewer -- for headless machines with no GUI/image "
-                          "viewer. Open the printed URL in a browser on any device. Also "
-                          "serves the generated devices report the same way (on a separate "
-                          "port) until you press ENTER to finish. Interactive mode only -- "
+serve_image_group = parser.add_mutually_exclusive_group()
+serve_image_group.add_argument("-si", "--serve-image", dest="serve_image", action="store_true",
+                     help="Force serving the captcha/QR image (and, in interactive mode, the "
+                          "devices report) over local HTTP instead of opening a local image "
+                          "viewer. This is already the default everywhere except Windows -- "
+                          "use this flag to force it on Windows too. Interactive mode only -- "
                           "captcha/QR login and the report pause aren't available with "
                           "--non_interactive, so this flag has no effect there.")
+serve_image_group.add_argument("-nsi", "--noserve-image", dest="noserve_image", action="store_true",
+                     help="Opt out of serving the image/report over HTTP and try to open the "
+                          "image with a local viewer instead. This is the default on Windows; "
+                          "use this flag to get that behavior on Linux/macOS too. Cannot be "
+                          "combined with --serve-image.")
 parser.add_argument("--host", required=False,
-                     help="Host/IP to show in the --serve-image URLs (e.g. the machine's LAN "
-                          "IP, so you can open them from another device). Defaults to "
-                          "127.0.0.1. Interactive mode only, same as --serve-image.")
+                     help="Host/IP to show in the served image/report URLs (e.g. the machine's "
+                          "LAN IP, so you can open them from another device). Defaults to "
+                          "127.0.0.1. Interactive mode only, same as image/report serving.")
 args = parser.parse_args()
+
+# --serve-image defaults to on everywhere except Windows -- on Linux/macOS
+# there's typically no local image viewer to fall back to anyway (headless
+# servers, freshly `apt install`-ed binaries with no desktop environment),
+# so requiring an extra flag just to get a usable QR/captcha link was more
+# friction than it was worth. --noserve-image opts back out (e.g. to test
+# the local-viewer fallback, or because --serve-image was forced on
+# Windows and you want the old behavior there instead). argparse's
+# mutually_exclusive_group above already rejects passing both at once, so
+# there's no precedence rule to worry about here -- at most one is True.
+if args.noserve_image:
+    args.serve_image = False
+elif not args.serve_image:
+    args.serve_image = sys.platform != "win32"
 
 init(autoreset=True)
 
