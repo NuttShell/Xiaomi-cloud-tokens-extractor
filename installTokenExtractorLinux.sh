@@ -105,17 +105,17 @@ promptChoice() {
   local options=("$@")
 
   echo "" >&2
-  echo "$title" >&2
+  echo "  $title" >&2
   local i
   for i in "${!options[@]}"; do
-    printf '%-3s- %s\n' "$((i + 1))" "${options[$i]}" >&2
+    printf '  %-3s- %s\n' "$((i + 1))" "${options[$i]}" >&2
   done
-  printf '%-3s-  Exit\n' "0" >&2
+  printf '  %-3s- %s\n' "0" "Exit" >&2
   echo "" >&2
 
   local choice
   while true; do
-    printf 'Enter number: ' >&2
+    printf '  Enter number: ' >&2
     IFS= read -r choice </dev/tty
     if [[ "$choice" == "0" ]]; then
       echo "0"
@@ -125,7 +125,7 @@ promptChoice() {
       echo "$choice"
       return
     fi
-    echo " Invalid input, try again" >&2
+    echo "  Invalid input, try again" >&2
   done
 }
 
@@ -353,7 +353,7 @@ doInstall() {
     if checkInstalledVersion "$target_version"; then
       need_download=0
     elif [[ $SILENT_MODE -eq 0 ]]; then
-      if ! promptYesNo "  Install/update to $target_version?" "y"; then
+      if ! promptYesNo "Install/update to $target_version?" "y"; then
         echo " Cancelled."
         return 0
       fi
@@ -386,13 +386,13 @@ doInstall() {
     echo " for future updates/removal."
     echo ""
   else
-    echo " $(colorize green "  token-extractor $target_version installed to $INSTALL_DIR")"
+    echo "token-extractor $target_version installed to $INSTALL_DIR"
   fi
 }
 
 doCheck() {
   if ! checkInstalled; then
-   echo " $(colorize yellow " Not installed. Run with --install to install it.")"
+    echo " $(colorize yellow "Not installed. Run with --install to install it.")"
     exit 1
   fi
 
@@ -421,7 +421,7 @@ doRemove() {
     echo " Install dir: $INSTALL_DIR"
     echo " This removes the binary, the installer copy, and the $SYMLINK_PATH symlink."
     echo " Session cache/reports in each user's ~/.xiaomi-token-extractor/ are left"
-    echo " alone (delete that folder yourself per-user if you also want those gone)."
+    echo " alone (use --delete-all-data instead if you also want those gone)."
     echo ""
     if ! promptYesNo "Are you sure you want to remove token-extractor?" "n"; then
       echo " $(colorize yellow "Cancelled.")"
@@ -431,7 +431,55 @@ doRemove() {
 
   rm -rf "$INSTALL_DIR"
   rm -f "$SYMLINK_PATH"
- echo " $(colorize green " token-extractor removed.")"
+  echo " token-extractor removed."
+}
+
+# Removes token-extractor's per-user state (~/.xiaomi-token-extractor/,
+# which holds the cached Xiaomi login session/cookies and saved reports --
+# see token_extractor.py's SCRIPT_DIR logic) for every account on this
+# machine that has one, not just the invoking user's. This is a system-wide
+# install, and each account gets its own state directory.
+deleteAllUserData() {
+  local home_dir data_dir found=0
+  while IFS=: read -r _ _ _ _ _ home_dir _; do
+    [[ -z "$home_dir" ]] && continue
+    data_dir="${home_dir}/.xiaomi-token-extractor"
+    if [[ -d "$data_dir" ]]; then
+      found=1
+      [[ $SILENT_MODE -eq 0 ]] && echo " - Removing $data_dir"
+      rm -rf "$data_dir"
+    fi
+  done < /etc/passwd
+
+  if [[ $found -eq 0 && $SILENT_MODE -eq 0 ]]; then
+    echo " - No per-user session data found."
+  fi
+}
+
+# The "nuclear option": everything --remove does, PLUS every account's
+# cached login session/reports. --remove on its own deliberately leaves
+# those alone (so a later reinstall can skip logging in again) -- this is
+# for when you actually want that cached token gone too.
+doDeleteAllData() {
+  if [[ $SILENT_MODE -eq 0 ]]; then
+    echo ""
+    echo " $(colorize yellow "This removes EVERYTHING:")"
+    echo "  - the binary and installer copy in $INSTALL_DIR"
+    echo "  - the $SYMLINK_PATH symlink"
+    echo "  - every account's cached Xiaomi login session and saved reports"
+    echo "    under ~/.xiaomi-token-extractor/ on this machine"
+    echo ""
+    if ! promptYesNo "Are you sure? This cannot be undone." "n"; then
+      echo " Cancelled."
+      return 0
+    fi
+  fi
+
+  rm -rf "$INSTALL_DIR"
+  rm -f "$SYMLINK_PATH"
+  deleteAllUserData
+
+  echo " $(colorize green "token-extractor and all cached data removed.")"
 }
 
 #############################################
@@ -449,6 +497,8 @@ Commands:
   -u, --update              Update to the latest version (installs it if missing)
   -c, --check               Check for updates -- reports only, changes nothing
   -r, --remove              Uninstall ($INSTALL_DIR and $SYMLINK_PATH)
+  -d, --delete-all-data     Uninstall AND wipe every account's cached Xiaomi
+                             login session/reports (~/.xiaomi-token-extractor/)
   -h, --help                Show this help message
 
 Options:
@@ -464,6 +514,7 @@ Examples:
   sudo $scriptname --update --silent     # update to latest, fully unattended
   sudo $scriptname --check               # just check whether an update exists
   sudo $scriptname --remove              # uninstall
+  sudo $scriptname --delete-all-data     # uninstall + wipe all cached sessions
 
 After installing: token-extractor --help
 Session cache and reports live per-user in ~/.xiaomi-token-extractor/, not in
@@ -492,6 +543,10 @@ parseArguments() {
         ;;
       -r|--remove)
         parsedCommand="remove"
+        shift
+        ;;
+      -d|--delete-all-data)
+        parsedCommand="delete-all-data"
         shift
         ;;
       --silent)
@@ -543,25 +598,30 @@ main() {
       doRemove
       exit 0
       ;;
+    delete-all-data)
+      doDeleteAllData
+      exit 0
+      ;;
   esac
 
   # No command given -- interactive menu.
   if [[ $SILENT_MODE -eq 1 ]]; then
-    echo " $(colorize yellow "  No command given. Use --install/--update/--check/--remove, or --help.")" >&2
+    echo " $(colorize yellow "No command given. Use --install/--update/--check/--remove, or --help.")" >&2
     exit 1
   fi
 
   echo ""
   echo " $(colorize green "=============================================================")"
-  echo " $(colorize green " Xiaomi Cloud Token extractor install/update/remove script")"
+  echo " $(colorize green "Xiaomi Cloud Tokens Extractor install/update/remove script")"
   echo " $(colorize green "=============================================================")"
 
   local choice
-  choice=$(promptChoice "  What would you like to do?" \
-      " Install / update to latest" \
-      " Install a specific version" \
-      " Check for updates" \
-      " Uninstall")
+  choice=$(promptChoice "What would you like to do?" \
+      "Install / update to latest" \
+      "Install a specific version" \
+      "Check for updates" \
+      "Uninstall" \
+      "Delete All data (include session cookie)")
 
   case "$choice" in
     1)
@@ -570,15 +630,16 @@ main() {
       ;;
     2)
       while true; do
-        specificVersion=$(promptInput "  Version to install (e.g. 1.0.5):")
+        specificVersion=$(promptInput "Version to install (e.g. 1.0.5):")
         [[ "$specificVersion" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] && break
-        echo "  That doesn't look like a version number, try again (or Ctrl+C to give up)."
+        echo " That doesn't look like a version number, try again (or Ctrl+C to give up)."
       done
       doInstall
       ;;
     3) doCheck ;;
     4) doRemove ;;
-    0|*) echo " $(colorize green " Bye.")" ;;
+    5) doDeleteAllData ;;
+    0|*) echo " $(colorize green "Bye.")" ;;
   esac
 }
 
