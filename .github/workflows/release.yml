@@ -16,7 +16,7 @@ jobs:
         run: |
           mkdir -p token_extractor
           cp token_extractor.py token_extractor/
-          cp packaging/requirements.txt token_extractor/
+          cp requirements.txt token_extractor/
           zip token_extractor.zip -r token_extractor
           rm -rf token_extractor
       - name: Archive built file
@@ -73,8 +73,8 @@ jobs:
           mkdir -p win_build
           cp -r make_win/. win_build/
           cp token_extractor.py win_build/
-          cp packaging/token_extractor.spec win_build/
-          cp packaging/icon.ico win_build/
+          cp token_extractor.spec win_build/
+          cp icon.ico win_build/
           cp requirements.txt win_build/
           (cd win_build && zip -r ../win_build.zip .)
           rm -rf win_build
@@ -113,7 +113,7 @@ jobs:
         run: pip3 install -r requirements.txt
         
       - name: Run pyinstaller
-        run: pyinstaller packaging/token_extractor.spec
+        run: pyinstaller token_extractor.spec
         
       - name: Strip Rich PE header
         shell: bash
@@ -173,7 +173,7 @@ jobs:
             bash -c '
               pip install -r requirements.txt
               pip install "pyinstaller==6.13.0"
-              pyinstaller packaging/token_extractor.spec
+              pyinstaller token_extractor.spec
             '
           sudo chown -R "$(id -u):$(id -g)" dist build
       - name: Check the minimum glibc version required by the binary
