@@ -45,19 +45,71 @@ bash <(curl -L https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor/raw/ma
 
 > If installation fails try Docker version
 
-## Docker & Home Assistant (in [SSH & Web Terminal](https://github.com/hassio-addons/addon-ssh))
-
-Execute following command:
-```bash
-bash <(curl -L https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor/raw/master/run_docker.sh)
-```
-
-> To run this command in HA you have to disable `protected mode` in addon's settings and restart it
-
 ## Windows
 Download and run [token_extractor.exe](https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor/releases/latest/download/token_extractor.exe).
 
 or build token_extractor.exe from token_extractor.py yourself - see  [Windows build tools](make_win/readme.md)
+
+## Linux
+
+### Quick install
+
+```bash
+sudo bash <(curl -fsSL https://raw.githubusercontent.com/NuttShell/Xiaomi-cloud-tokens-extractor/master/installTokenExtractorLinux.sh)
+```
+
+This installs `token-extractor` system-wide under `/opt/xiaomi-token-extractor/`, with a `token-extractor` command added to `PATH`. The script supports interactive and non-interactive installation, updates, and removal. When run interactively, you can:
+
+- **Install / update to latest** -- installs the latest release, or updates an existing install
+- **Install a specific version** -- pin to a given release (e.g. `1.0.5`)
+- **Check for updates** -- reports the installed vs. latest version, changes nothing
+- **Uninstall** -- removes the binary and the `token-extractor` command, but keeps your cached login session so a reinstall won't ask you to log in again
+- **Delete All data** -- uninstall, plus wipe every account's cached Xiaomi login session and saved reports (`~/.xiaomi-token-extractor/`) on this machine
+
+Download first and set execute permissions if you'd rather not pipe straight into `bash`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NuttShell/Xiaomi-cloud-tokens-extractor/master/installTokenExtractorLinux.sh -o installTokenExtractorLinux.sh
+chmod 755 installTokenExtractorLinux.sh
+sudo ./installTokenExtractorLinux.sh
+```
+
+Command-line examples:
+```bash
+sudo ./installTokenExtractorLinux.sh --install              # install the latest release
+sudo ./installTokenExtractorLinux.sh --install 1.0.5         # install a specific version
+sudo ./installTokenExtractorLinux.sh --update --silent       # update to latest, no prompts
+sudo ./installTokenExtractorLinux.sh --check                 # just check whether an update exists
+sudo ./installTokenExtractorLinux.sh --remove                # uninstall (keeps cached login)
+sudo ./installTokenExtractorLinux.sh --delete-all-data        # uninstall + wipe all cached sessions
+```
+
+Run `./installTokenExtractorLinux.sh --help` for the full list of options.
+
+### Without the install script
+
+If you'd rather manage it yourself, the raw binary and both package formats are attached to every [release](https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor/releases):
+
+**Raw binary** -- no installation, just download and run:
+```bash
+curl -fsSL -o token-extractor https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor/releases/latest/download/token_extractor_linux_amd64
+chmod +x token-extractor
+./token-extractor --help
+```
+
+**.deb** (Debian, Ubuntu, and derivatives):
+```bash
+curl -fsSL -o token-extractor.deb https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor/releases/latest/download/token_extractor_linux_amd64.deb
+sudo dpkg -i token-extractor.deb
+```
+
+**.rpm** (Fedora, RHEL, and derivatives):
+```bash
+curl -fsSL -o token-extractor.rpm https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor/releases/latest/download/token_extractor_linux_amd64.rpm
+sudo rpm -i token-extractor.rpm
+```
+
+> Only amd64 (x86_64) builds are published right now, and they need glibc 2.31 or newer (Debian 11 / Ubuntu 20.04 or newer). Session cache and saved reports live per-user under `~/.xiaomi-token-extractor/`, separate from the install location.
 
 ## Manual run in python
 
