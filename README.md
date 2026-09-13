@@ -10,9 +10,7 @@
 
 # Xiaomi Cloud Tokens Extractor
 
-_This is a fork of [PiotrMachowski/Xiaomi-cloud-tokens-extractor](https://github.com/PiotrMachowski/Xiaomi-cloud-tokens-extractor) with additional fixes and features — see [Changes vs. the original](#changes-vs-the-original-token_extractorpy) below. All credit for the original tool goes to Piotr Machowski._
-#### Changes vs. the original `token_extractor.py` - full list at [`CHANGES.md`](./CHANGES.md).
-
+_This is a fork of [PiotrMachowski/Xiaomi-cloud-tokens-extractor](https://github.com/PiotrMachowski/Xiaomi-cloud-tokens-extractor) with additional fixes and features — see full list at [`CHANGES.md`](./CHANGES.md). All credit for the original tool goes to Piotr Machowski._
 
 This tool retrieves tokens for all devices connected to Xiaomi cloud and encryption keys for BLE devices.
 
@@ -30,7 +28,7 @@ The script can also run fully non-interactively, with credentials, server, and o
 
 ## Home Assistant App
 
-1. Settings > App > 3Dots > Repositories > Add
+1. Settings > App > Repositories > Add
    ```
    https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor
    ```
