@@ -20,9 +20,13 @@ It supports two ways of authentication:
 - username (e-mail/Xiaomi Cloud account ID) & password
 - QR code
 
-After logging in you have to select a Xiaomi's server region (`cn` - China, `de` - Germany etc.). Leave it empty to check all available
+A successful login is cached, so you won't be asked to log in again on your next run as long as it's still valid -- encrypted on Windows, `chmod 600`-protected on Linux (see the [Linux](#linux) section below for exactly where it's stored there).
 
-In return all of your devices connected to account will be listed, together with their name and IP address.
+After logging in you pick a Xiaomi server region from a numbered list (`cn` - China, `de` - Germany, etc.), or leave it empty/press Enter to check all of them.
+
+In return, all of your devices connected to the account are listed -- name, model, firmware version, ID, MAC, IP address, token, and BLE beacon key where applicable -- and saved to a timestamped report file.
+
+The script can also run fully non-interactively, with credentials, server, and output file passed as command-line flags instead of prompts. Run it with `--help` (or `-h`) to see the full list of options.
 
 ## Home Assistant App
 
