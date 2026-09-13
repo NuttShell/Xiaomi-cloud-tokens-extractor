@@ -67,10 +67,10 @@ if [ ${#reports[@]} -gt 0 ]; then
     echo
     echo "-------------------------------------------------------------"
     echo "  (L) -- view Latest report"
-    echo "  (V) -- view All reports"
+    echo "  (A) -- view All reports"
     echo "  (D) -- Delete all reports"
     echo "-------------------------------------------------------------"
-    read -r -p " View [L]atest, [V]iew all, [D]elete all, or press Enter to exit: " CHOICE
+    read -r -p " View [L]atest, View [A]ll, [D]elete all, or press Enter to exit: " CHOICE
     case "${CHOICE^^}" in
         L)
             latest=$(ls -t "${reports[@]}" | head -1)
@@ -81,7 +81,7 @@ if [ ${#reports[@]} -gt 0 ]; then
             echo "---- end ----"
             echo
             ;;
-        V)
+        A)
             echo
             echo
             echo "--- Begin ---"
