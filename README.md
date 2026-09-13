@@ -130,7 +130,7 @@ pip3 install -r requirements.txt
 python3 token_extractor.py
 ```
 
-> On a headless machine (no display/image viewer available) add `--serve-image` to view the captcha/QR code over HTTP instead: `python3 token_extractor.py --serve-image`. Add `--host <LAN IP>` as well if you want to open it from another device on the network.
+> On a headless machine add `--host <LAN IP>` as well if you want to open it from another device on the network.
 
 ## Troubleshooting
 
