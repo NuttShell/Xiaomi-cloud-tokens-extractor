@@ -48,10 +48,10 @@ exec ttyd -t cursorStyle=bar -t 'theme={"background": "black"}' -p 7681 -W bash 
     echo
     echo "-------------------------------------------------------------"
     echo "  (L) -- view Latest report"
-    echo "  (V) -- view All report"
+    echo "  (A) -- view All report"
     echo "  (D) -- Delete all report"
     echo "-------------------------------------------------------------"
-    read -r -p " View [L]atest, [V]iew all, [D]elete all, or press Enter to exit: " CHOICE
+    read -r -p " View [L]atest, View [A]ll, [D]elete all, or press Enter to exit: " CHOICE
     case "${CHOICE^^}" in
             L)
                 latest=$(ls -t xiaomi_tokens_*.txt | head -1)
@@ -62,7 +62,7 @@ exec ttyd -t cursorStyle=bar -t 'theme={"background": "black"}' -p 7681 -W bash 
                 echo "---- end ----"
                 echo
                 ;;
-            V)
+            A)
                 echo
                 echo
                 echo "--- Begin ---"
