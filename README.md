@@ -10,7 +10,9 @@
 
 # Xiaomi Cloud Tokens Extractor
 
-_This is a fork of [PiotrMachowski/Xiaomi-cloud-tokens-extractor](https://github.com/PiotrMachowski/Xiaomi-cloud-tokens-extractor) with additional fixes and features — see full list at [`CHANGES.md`](./CHANGES.md). All credit for the original tool goes to Piotr Machowski._
+_This is a fork of [PiotrMachowski/Xiaomi-cloud-tokens-extractor](https://github.com/PiotrMachowski/Xiaomi-cloud-tokens-extractor) with additional fixes and features — see full list at [`CHANGES.md`](./CHANGES.md).
+
+All credit for the original tool goes to Piotr Machowski._
 
 This tool retrieves tokens for all devices connected to Xiaomi cloud and encryption keys for BLE devices.
 
