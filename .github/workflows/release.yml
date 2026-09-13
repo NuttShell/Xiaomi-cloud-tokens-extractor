@@ -275,3 +275,25 @@ jobs:
           asset_name: token_extractor_linux_amd64.rpm
           tag: ${{ github.ref }}
           overwrite: true
+  bump_ha_addon_version:
+    name: Bump HA add-on version
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download repo
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Bump HA_app/config.yaml version
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          sed -i "s/^version: .*/version: \"$VERSION\"/" HA_app/config.yaml
+          grep "^version:" HA_app/config.yaml
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add HA_app/config.yaml
+          git commit -m "Bump HA add-on version to ${{ github.event.release.tag_name }}" || echo "Nothing to commit"
+          git push
