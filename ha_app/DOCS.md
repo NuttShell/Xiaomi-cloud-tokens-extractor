@@ -68,4 +68,4 @@ your system:
 ## Support
 
 Questions, bug reports, or feature requests -- please open an issue on
-GitHub: [GitHub](https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor)
+[GitHub](https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor)
