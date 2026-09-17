@@ -10,9 +10,8 @@
 
 # Xiaomi Cloud Tokens Extractor
 
-_This is a fork of [PiotrMachowski/Xiaomi-cloud-tokens-extractor](https://github.com/PiotrMachowski/Xiaomi-cloud-tokens-extractor) with additional fixes and features — see full list at [`CHANGES.md`](./CHANGES.md)._
-
-_All credit for the original tool goes to Piotr Machowski._
+_This is a fork of [PiotrMachowski/Xiaomi-cloud-tokens-extractor](https://github.com/PiotrMachowski/Xiaomi-cloud-tokens-extractor) with additional fixes and features — see [Changes vs. the original](#changes-vs-the-original-token_extractorpy) below. All credit for the original tool goes to Piotr Machowski._
+#### Changes vs. the original `token_extractor.py` - full list at [`CHANGES.md`](./CHANGES.md).
 
 
 This tool retrieves tokens for all devices connected to Xiaomi cloud and encryption keys for BLE devices.
@@ -31,15 +30,21 @@ The script can also run fully non-interactively, with credentials, server, and o
 
 ## Home Assistant App
 
-Settings > App > Repositories > Add
-   ```
-   https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor
-   ```
+1. In Home Assistant, go to **Settings -> App -> Install App**.
+2. Click the **⋮** menu (top right) -> **Repositories**, and add:
+   `https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor`
+3. Find **Xiaomi Cloud Tokens Extractor** in the store (refresh the page if
+   it doesn't show up right away) and open it.
+4. Click **Install**. The first install builds the container image on your
+   own machine, so it can take a few minutes depending on your hardware --
+   this is normal.
+5. Once it's installed, open the **Info** tab and click **Start**.
+ 
    or
    
 [![Open your Home Assistant instance and show the add add-on repository dialog with a specific repository URL pre-filled.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FNuttShell%2FXiaomi-cloud-tokens-extractor)
    
-Settings > App > Install App > Xiaomi Cloud Tokens Extractor > Install > Start
+ **Settings -> App -> Install App -> Xiaomi Cloud Tokens Extractor -> Install > Start**
 
 ## Linux & Home Assistant (in [SSH & Web Terminal](https://github.com/hassio-addons/addon-ssh))
 
@@ -132,7 +137,7 @@ python3 token_extractor.py
 deactivate
 ```
 
-> On a headless machine add `--host <LAN IP>` as well if you want to open it from another device on the network.
+> On a headless machine (no display/image viewer available) add `--serve-image` to view the captcha/QR code over HTTP instead: `python3 token_extractor.py --serve-image`. Add `--host <LAN IP>` as well if you want to open it from another device on the network.
 
 ## Troubleshooting
 
