@@ -142,3 +142,20 @@ dmypy.json
 cython_debug/
 
 # End of https://www.toptal.com/developers/gitignore/api/python
+
+# --- Xiaomi Cloud Tokens Extractor: runtime state and output ---
+# Created next to the script, or in XIAOMI_TOKEN_EXTRACTOR_DIR when set.
+
+# Client identity: User-Agent and deviceId presented to Xiaomi
+.xiaomi-client-id.json
+
+# Login session: userId, ssecurity, serviceToken, passToken
+.xiaomi-cloud-session.json
+
+# Generated reports -- these contain device tokens
+xiaomi_tokens_*.txt
+
+# State directory created by run.sh, and the disposable install copy
+token_extractor_data/
+token_extractor/
+token_extractor.zip
