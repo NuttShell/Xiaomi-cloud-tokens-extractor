@@ -46,6 +46,7 @@ The script can also run fully non-interactively, with credentials, server, and o
    
  **Settings -> App -> Install App -> Xiaomi Cloud Tokens Extractor -> Install > Start**
 
+
 ## Linux & Home Assistant (in [SSH & Web Terminal](https://github.com/hassio-addons/addon-ssh))
 
 Execute following command:
@@ -137,7 +138,7 @@ python3 token_extractor.py
 deactivate
 ```
 
-> On a headless machine (no display/image viewer available) add `--serve-image` to view the captcha/QR code over HTTP instead: `python3 token_extractor.py --serve-image`. Add `--host <LAN IP>` as well if you want to open it from another device on the network.
+> Add `--host <LAN IP>` as well if you want to open it from another device on the network.
 
 ## Troubleshooting
 
