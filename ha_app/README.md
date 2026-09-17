@@ -5,34 +5,44 @@ Runs [token_extractor.py](https://github.com/NuttShell/Xiaomi-cloud-tokens-extra
 inside a real, interactive terminal right inside the Home Assistant UI --
 no SSH, no separate Docker command to remember.
 
-## Usage
+## About
 
-1. Start the add-on (**Info** tab -> **Start**).
-2. Click **Open Web UI** (or the sidebar icon, if you pinned it) -- this
-   opens a terminal, running the tool fresh.
-3. Follow the prompts: choose password or QR login, enter your Xiaomi
-   Home credentials (not your Roborock app credentials), pick a server
-   region.
-4. **If a captcha or QR code appears:** the terminal will print something
-   like `Image URL: http://127.0.0.1:31415` -- ignore the `127.0.0.1`
-   part and instead open `http://<your-home-assistant-address>:31415` in
-   a **separate browser tab** (same address you use to reach Home
-   Assistant itself, e.g. `homeassistant.local` or its LAN IP). Solve the
-   captcha or scan the QR code there, then type the answer back in the
-   terminal tab.
-5. Once logged in, your devices/tokens print in the terminal and also get
-   saved as a text report (`xiaomi_tokens_<date>_<time>.txt`) inside the
-   add-on's own container filesystem for that session.
+Most Xiaomi/Mi Home devices only expose their local API once you know their
+per-device **token**, and BLE-based Xiaomi devices need an **encryption key**
+on top of that -- both of these live in Xiaomi's cloud, not on the device
+itself, and Xiaomi doesn't show them to you anywhere in the app. This add-on
+packages [token_extractor.py](https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor)
+(a fork of Piotr Machowski's original, widely used script) so it runs as a
+real, interactive terminal right inside the Home Assistant UI -- no SSH
+session, no manually running a Docker container, nothing to install on your
+own machine. Log in with your Xiaomi account once, and you get every
+device's token (and BLE key, where applicable) printed straight to the
+screen and saved to a report you can come back to.
 
-## Notes
+## Features
 
-- The terminal re-runs the tool from scratch every time you open the Web
-  UI fresh (refreshing the page starts a new run). That's normal.
-- This add-on is meant to be started **manually** when you need to
-  (re-)extract tokens, not left running continuously -- there's nothing
-  to run in the background between uses.
-- Your Xiaomi Cloud password is typed directly into the terminal and is
-  not stored by this add-on beyond the session cache
-  (`.xiaomi-cloud-session.json`) the tool itself already uses to avoid
-  repeating the login/captcha flow on the very next run in the same
-  container session.
+- **Password or QR-code login** -- log in with your Xiaomi/Mi Home email and
+  password, or use the QR-code flow instead. For the QR code, you don't
+  need to actually scan anything with your phone: the image is served as a
+  plain link, so you can just open it in a browser and complete the login
+  there.
+- **One-click captcha/QR link** -- if Xiaomi asks for a captcha (or shows
+  the QR login image), the add-on detects your Home Assistant instance's
+  real address on its own and prints a ready-to-click
+  `http://<your-home-assistant-address>:31415` link -- nothing to edit or
+  guess at.
+- **Session caching** -- once you're logged in, that session is cached for
+  as long as the add-on's container is running, so re-running the tool
+  doesn't make you log in (or solve a captcha) all over again.
+- **Numbered server menu** -- pick which Xiaomi cloud server/region to
+  check for devices from a plain numbered list of country names (instead
+  of raw server codes), or just press `0` to exit straight away without
+  checking any server.
+- **Latest report, one link away** -- the most recently generated token
+  report is served over that same `server:port` link, so you can pull it
+  up from another device without needing the terminal.
+- **Built-in report manager** -- once a run finishes, a small menu lets you
+  view the latest report, view every report you've collected so far, or
+  delete them all -- right there in the terminal, no manual file digging
+  required.
+
