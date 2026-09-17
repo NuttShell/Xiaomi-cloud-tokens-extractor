@@ -1,4 +1,7 @@
 [![GitHub release](https://img.shields.io/github/v/release/NuttShell/Xiaomi-cloud-tokens-extractor)](https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor/releases/latest)
+
+<img src="https://raw.githubusercontent.com/NuttShell/Xiaomi-cloud-tokens-extractor/master/ha_app/logo.png" width="200">
+
 # Xiaomi Cloud Tokens Extractor
 
 Runs [token_extractor.py](https://github.com/NuttShell/Xiaomi-cloud-tokens-extractor)
