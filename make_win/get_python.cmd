@@ -2,7 +2,7 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-set "version=26.0906"
+set "version=26.0921"
 set "SCRIPTDIR=%~dp0"
 set "SCRIPTDIR=%SCRIPTDIR:~0,-1%"
 
@@ -12,28 +12,35 @@ for %%A in (%*) do (
 )
 
 set ARGS= %*
+if defined ARGS set "ARGS=%ARGS:\"="%"
+if defined ARGS set "ARGS=%ARGS:\"="%"
 if defined ARGS set "ARGS=%ARGS:"=\"%"
 if defined ARGS set "ARGS=%ARGS:'=''%"
 
-powershell -NoProfile -ExecutionPolicy Bypass -c ^"$ScriptDir='%SCRIPTDIR%'; $version='%version%'; Invoke-Expression ('^& {' + (get-content -raw -Encoding UTF8 '%~f0') + '} %ARGS%')"
+powershell -NoProfile -ExecutionPolicy Bypass -c ^"$version='%version%'; Invoke-Expression ('^& {' + (get-content -raw -Encoding UTF8 '%~f0') + '} %ARGS%')"
 
 set "RC=%errorlevel%"
 if not "%RC%"=="0" if not defined NOWAIT pause
-
 exit /b %RC%
+
 #>
 
 param(
     [string]$PyVer = "",
     [string]$Arch  = "",
-	[switch]$NoWait
+    [string]$packageDir  = "",
+    [switch]$Overwrite,
+    [switch]$NoWait
 )
 
-$DEFAULT_PACKAGES = @(
-    "pyinstaller"
-)
-
+# ---- context resolution -------------------------------------------------
+# $ScriptDir / $version are injected by the batch header above.
+# Fallbacks keep the PowerShell body usable when it is NOT launched as .cmd:
+#   - as a plain .ps1 file        -> $PSScriptRoot
+#   - via irm <url> | iex         -> current directory
 if (-not $ScriptDir) { $ScriptDir = $PSScriptRoot }
+if (-not $ScriptDir) { $ScriptDir = (Get-Location).ProviderPath }
+if (-not $version)   { $version   = "26.0917" }   # keep in sync with batch header
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
@@ -83,7 +90,6 @@ function Download-File {
         try {
             if (Test-Path $Dest) { Remove-Item $Dest -Force }
             Write-Status "Downloading $Description..." $Url
-
             $req              = [System.Net.HttpWebRequest]::Create($Url)
             $req.Timeout      = 120000
             $req.ReadWriteTimeout = 120000
@@ -94,7 +100,6 @@ function Download-File {
             $buf              = New-Object byte[] 65536
             $downloaded       = [long]0
             $lastPct          = -1
-
             while ($true) {
                 $read = $stream.Read($buf, 0, $buf.Length)
                 if ($read -le 0) { break }
@@ -174,9 +179,9 @@ function Select-FromList {
     }
     Write-Host ""
     while ($true) {
-        $input = Read-Host "Enter number (1-$($Items.Count))"
+        $answer = Read-Host "Enter number (1-$($Items.Count))"
         $n = 0
-        if ([int]::TryParse($input, [ref]$n) -and $n -ge 1 -and $n -le $Items.Count) {
+        if ([int]::TryParse($answer, [ref]$n) -and $n -ge 1 -and $n -le $Items.Count) {
             return $n - 1
         }
         Write-Host "  Invalid input, try again" -ForegroundColor Yellow
@@ -199,7 +204,7 @@ function Test-PyConfigValues {
 
 function Read-PyConfig {
     param([string]$Path)
-    if (-not (Test-Path $Path)) { return $null }
+    if (-not (Test-Path -LiteralPath $Path)) { return $null }
 
     try {
         $raw = Get-Content -LiteralPath $Path -Raw -Encoding UTF8
@@ -257,10 +262,24 @@ function Select-BuildInteractive {
 }
 
 function Invoke-Python {
-    param([string]$PythonExe, [string]$Arguments, [string]$StatusText)
+     param(
+        [string]$PythonExe,
+        [string]$Arguments,
+        [string]$StatusText,
+        [string]$WorkingDirectory = ""
+    )
     Write-Status $StatusText
-    $p = Start-Process -FilePath $PythonExe -ArgumentList $Arguments `
-                       -NoNewWindow -Wait -PassThru
+    $spArgs = @{
+        FilePath     = $PythonExe
+        ArgumentList = $Arguments
+        NoNewWindow  = $true
+        Wait         = $true
+        PassThru     = $true
+    }
+    if ($WorkingDirectory -ne "" -and (Test-Path -LiteralPath $WorkingDirectory)) {
+        $spArgs.WorkingDirectory = $WorkingDirectory
+    }
+    $p = Start-Process @spArgs
     $script:_lastErr = ""
     return $p.ExitCode
 }
@@ -331,66 +350,142 @@ function Install-Pip {
     return $true
 }
 
+function Resolve-RequirementsDir {
+    # -PackageDir points at a DIRECTORY that may contain requirements.txt.
+    # Not given -> the script's own directory. Relative paths are resolved
+    # against the current directory of the caller.
+    # A missing requirements.txt is never an error: the script then installs pip only.
+    param([string]$PathSpec, [string]$DefaultDir)
+
+    if ($PathSpec -eq "") {
+        return [PSCustomObject]@{ Dir = $DefaultDir; Explicit = $false }
+    }
+
+    $p = $PathSpec.Trim().Trim('"')
+    # tolerate a trailing separator: "C:\dir\" -> "C:\dir" (but keep a bare root "C:\")
+    while ($p.Length -gt 3 -and ($p.EndsWith('\') -or $p.EndsWith('/'))) {
+        $p = $p.Substring(0, $p.Length - 1)
+    }
+    if ($p -eq "") { return [PSCustomObject]@{ Dir = $DefaultDir; Explicit = $false } }
+
+    if (-not [System.IO.Path]::IsPathRooted($p)) {
+        $p = Join-Path (Get-Location).ProviderPath $p
+    }
+    try { $p = [System.IO.Path]::GetFullPath($p) } catch { }
+
+    return [PSCustomObject]@{ Dir = $p; Explicit = $true }
+}
+
 function Read-Requirements {
     param([string]$Path)
-    if (-not (Test-Path $Path)) { return [string[]]@() }
-    return @(Get-Content $Path -Encoding UTF8 -ErrorAction SilentlyContinue |
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return [string[]]@() }
+    return @(Get-Content -LiteralPath $Path -Encoding UTF8 -ErrorAction SilentlyContinue |
              Where-Object { $_ -and $_.Trim() -ne "" -and -not $_.TrimStart().StartsWith("#") } |
              ForEach-Object { $_.Trim() })
 }
 
 function Install-Requirements {
     param([string]$PythonDir, [string]$RequirementsFile)
-    $py   = Join-Path $PythonDir "python.exe"
-    $exit = Invoke-Python -PythonExe $py `
-                -Arguments "-m pip install -r `"$RequirementsFile`" --no-warn-script-location --no-cache-dir" `
-                -StatusText "Installing packages from requirements.txt..."
+    $py      = Join-Path $PythonDir "python.exe"
+    $workDir = Split-Path -Parent $RequirementsFile
+    $exit    = Invoke-Python -PythonExe $py `
+                   -Arguments "-m pip install -r `"$RequirementsFile`" --no-warn-script-location --no-cache-dir" `
+                   -StatusText "Installing packages from requirements..." `
+                   -WorkingDirectory $workDir
     if ($exit -ne 0) {
-        Write-Fail "requirements.txt install failed (exit $exit): $($script:_lastErr)"
+        Write-Fail "requirements install failed (exit $exit): $($script:_lastErr)"
         return $false
     }
-    Write-OK "Packages installed from requirements.txt"
+    Write-OK "Packages installed from $(Split-Path -Leaf $RequirementsFile)"
     return $true
 }
 
-function Install-Packages {
-    param([string]$PythonDir, [string[]]$Packages)
-    if ($Packages.Count -eq 0) { return $true }
-    $py      = Join-Path $PythonDir "python.exe"
-    $pkgList = $Packages -join " "
-    $exit    = Invoke-Python -PythonExe $py `
-                   -Arguments "-m pip install $pkgList --no-warn-script-location --no-cache-dir" `
-                   -StatusText "Installing packages: $pkgList"
-    if ($exit -ne 0) { Write-Fail "Package install failed (exit $exit): $($script:_lastErr)"; return $false }
-    Write-OK "Packages installed: $pkgList"
-    return $true
+function Show-ExistingInstall {
+    # Returns $true to proceed with a (re)install, $false to leave the existing one alone.
+    #   -Overwrite          -> always reinstall, no prompt (silent/unattended mode)
+    #   -NoWait, no prompt  -> cannot ask, so nothing is touched
+    #   otherwise           -> [R]einstall / [C]ancel
+    param([string]$PythonDir, [switch]$Overwrite, [switch]$NoWait)
+
+    $pyExe = Join-Path $PythonDir "python.exe"
+    if (-not (Test-Path $pyExe)) { return $true }
+
+    Write-Status "Existing installation found" $PythonDir
+
+    $verLine = ((& $pyExe --version) 2>&1 | Out-String).Trim()
+    Write-Host "    Version : $verLine" -ForegroundColor White
+
+    $pkgLines = @()
+    try {
+        $pkgLines = @(& $pyExe -m pip list --format=freeze --disable-pip-version-check 2>$null)
+    } catch { $pkgLines = @() }
+
+    if ($pkgLines.Count -gt 0) {
+        Write-Host "    Installed packages ($($pkgLines.Count)):" -ForegroundColor White
+        foreach ($line in $pkgLines) { Write-Host "      $line" -ForegroundColor Gray }
+    } else {
+        Write-Host "    Installed packages: none found (or pip is not available)" -ForegroundColor Gray
+    }
+    Write-Host ""
+
+    if ($Overwrite) {
+        Write-Host "  -Overwrite set -- reinstalling without prompting" -ForegroundColor Yellow
+        return $true
+    }
+
+    if ($NoWait) {
+        Write-Host "  -NoWait set without -Overwrite -- cannot prompt, nothing will be changed" -ForegroundColor Yellow
+        Write-Host "  Add -Overwrite to reinstall unattended." -ForegroundColor Yellow
+        return $false
+    }
+
+    while ($true) {
+        $choice = (Read-Host "[R]einstall / [C]ancel").Trim().ToUpper()
+        if ($choice -eq "C") { return $false }
+        if ($choice -eq "R") { return $true }
+        Write-Host "  Invalid input, try again" -ForegroundColor Yellow
+    }
 }
 
 # ==================== MAIN ====================
-$downloadDir      = Join-Path $ScriptDir "download"
-$pythonDir        = Join-Path $ScriptDir "python"
-$baseUrl          = "https://www.python.org/ftp/python/"
-$configFile       = Join-Path $ScriptDir "pyconfig.json"
-$requirementsFile = Join-Path $ScriptDir "requirements.txt"
+$downloadDir = Join-Path $ScriptDir "download"
+$pythonDir   = Join-Path $ScriptDir "python"
+$baseUrl     = "https://www.python.org/ftp/python/"
+$configFile  = Join-Path $ScriptDir "pyconfig.json"
 
-$reqPackages     = Read-Requirements -Path $requirementsFile
-$hasRequirements = $reqPackages.Count -gt 0
+$reqInfo          = Resolve-RequirementsDir -PathSpec $PackageDir -DefaultDir $ScriptDir
+$requirementsFile = Join-Path $reqInfo.Dir "requirements.txt"
+$reqPackages      = Read-Requirements -Path $requirementsFile
+$hasRequirements  = $reqPackages.Count -gt 0
 
 Write-Host ""
 Write-Host "==============================================" -ForegroundColor White
-Write-Host " Python Embed Installer (console)" -ForegroundColor White
-Write-Host " version $version" -ForegroundColor White
+Write-Host " Python Embed Installer (console)"              -ForegroundColor White
+Write-Host " version $version"                              -ForegroundColor White
 Write-Host "==============================================" -ForegroundColor White
 Write-Host ""
+
+if ($reqInfo.Explicit -and -not (Test-Path -LiteralPath $reqInfo.Dir -PathType Container)) {
+    Write-Host "Note     : -PackageDir does not exist: $($reqInfo.Dir)" -ForegroundColor Yellow
+}
 
 if ($hasRequirements) {
-    Write-Host "Packages: from requirements.txt ($($reqPackages.Count) entries)" -ForegroundColor White
+    Write-Host "Packages : $($reqPackages.Count) entries from requirements.txt" -ForegroundColor White
+    Write-Host "           $requirementsFile"                                   -ForegroundColor Gray
 } else {
-    Write-Host "Packages: $($DEFAULT_PACKAGES -join ', ')" -ForegroundColor White
+    Write-Host "Packages : none -- no requirements.txt, installing pip only" -ForegroundColor White
+    Write-Host "           looked in: $($reqInfo.Dir)"                       -ForegroundColor Gray
 }
+Write-Host "Target   : $pythonDir" -ForegroundColor White
 Write-Host ""
 
 try {
+    $proceed = Show-ExistingInstall -PythonDir $pythonDir -Overwrite:$Overwrite -NoWait:$NoWait
+    if (-not $proceed) {
+        Write-Status "Cancelled" "Existing installation left untouched: $pythonDir"
+        exit 0
+    }
+
     Write-Status "Checking connection..." "www.python.org:443"
     if (-not (Test-TcpConnect -HostName "www.python.org")) {
         Write-Fail "No internet connection or python.org is unreachable"
@@ -455,6 +550,7 @@ try {
     } else {
         $sel = Select-BuildInteractive -Builds $builds
     }
+
     $zipDest = Join-Path $downloadDir $sel.FileName
     $ok = Download-File -Url $sel.Url -Dest $zipDest `
                         -Description "Python $($sel.Version) [$($sel.Arch)]"
@@ -480,25 +576,23 @@ try {
 
     if ($hasRequirements) {
         $ok = Install-Requirements -PythonDir $pythonDir -RequirementsFile $requirementsFile
+        if (-not $ok) { exit 1 }
     } else {
-        $ok = Install-Packages -PythonDir $pythonDir -Packages $DEFAULT_PACKAGES
+        Write-Status "No requirements file -- skipping package installation"
     }
-    if (-not $ok) { exit 1 }
-
     Remove-Item $downloadDir -Recurse -Force -ErrorAction SilentlyContinue
-
     Write-Host ""
     Write-Host "==================== COMPLETE ====================" -ForegroundColor Green
     Write-Host "Location : $pythonDir"                              -ForegroundColor White
     Write-Host "Version  : $($sel.Version) [$($sel.Arch)]"          -ForegroundColor White
     if ($hasRequirements) {
-        Write-Host "Installed: pip + $($reqPackages.Count) package(s) from requirements.txt" -ForegroundColor White
+        Write-Host "Installed: pip + $($reqPackages.Count) package(s) from $(Split-Path -Leaf $requirementsFile)" -ForegroundColor White
     } else {
-        Write-Host "Installed: pip + $($DEFAULT_PACKAGES -join ', ')" -ForegroundColor White
+        Write-Host "Installed: pip only"                            -ForegroundColor White
     }
     Write-Host "==================================================" -ForegroundColor Green
     Write-Host ""
-	if (-not $NoWait) { Read-Host -Prompt "Press any key to continue" }
+    if (-not $NoWait) { Read-Host -Prompt "Press Enter to continue" | Out-Null }
 
 } catch {
     Write-Fail "FATAL ERROR: $($_.Exception.Message)"
